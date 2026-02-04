@@ -143,6 +143,8 @@ Returns alist of (window . (list of keys)).
 When a column has exactly 2 windows and the keyboard has 3 rows, the
 middle row is skipped for that column to improve the spatial mapping."
   (let* ((info-grid (spatial-window--window-info frame))
+         (grid-rows (length info-grid))
+         (grid-cols (length (car info-grid)))
          (kbd-layout spatial-window-keyboard-layout)
          (kbd-rows (length kbd-layout))
          (kbd-cols (length (car kbd-layout)))
@@ -164,8 +166,8 @@ middle row is skipped for that column to improve the spatial mapping."
     ;; Check if we have too many windows for the keyboard layout
     (if (not (and col-boundaries row-boundaries))
         (progn
-          (message "Too many windows for keyboard layout (%d cols, %d rows available)"
-                   kbd-cols kbd-rows)
+          (message "Too many windows: %d cols/%d rows, keyboard has %d cols/%d rows"
+                   grid-cols grid-rows kbd-cols kbd-rows)
           nil)
       ;; Assign keys to windows
       (cl-loop for kbd-row from 0 below kbd-rows
