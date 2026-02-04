@@ -54,12 +54,6 @@ This represents the spatial arrangement of keys on your keyboard."
   :type '(repeat (repeat string))
   :group 'spatial-window)
 
-(defcustom spatial-window-overlay-position 'top-left
-  "Position of the key overlay in each window."
-  :type '(choice (const :tag "Top Left" top-left)
-                 (const :tag "Center" center))
-  :group 'spatial-window)
-
 (defface spatial-window-overlay-face
   '((t (:foreground "red" :background "white" :weight bold)))
   "Face for spatial-window key overlay."
@@ -67,6 +61,9 @@ This represents the spatial arrangement of keys on your keyboard."
 
 (defvar spatial-window--overlays nil
   "List of active overlays during window selection.")
+
+(defvar spatial-window--saved-header-lines nil
+  "Alist of (window . (buffer . original-header-line)) for restoration.")
 
 (defun spatial-window--frame-windows ()
   "Return list of windows in current frame, excluding minibuffer."
@@ -336,42 +333,53 @@ Returns a string showing which keys are assigned, displayed in keyboard layout."
      spatial-window-keyboard-layout
      "\n")))
 
-(defun spatial-window--get-overlay-position (window)
-  "Return buffer position for overlay in WINDOW based on config."
-  (with-selected-window window
-    (pcase spatial-window-overlay-position
-      ('top-left (window-start window))
-      ('center (save-excursion
-                 (goto-char (window-start window))
-                 (forward-line (/ (window-body-height) 2))
-                 (point))))))
+(defun spatial-window--format-key-grid-single-line (keys)
+  "Format KEYS as a single-line keyboard grid for header-line display."
+  (let ((key-set (make-hash-table :test 'equal)))
+    (dolist (k keys)
+      (puthash k t key-set))
+    (mapconcat
+     (lambda (row)
+       (mapconcat
+        (lambda (key)
+          (if (gethash key key-set) key "."))
+        row " "))
+     spatial-window-keyboard-layout
+     "  |  ")))
 
 (defun spatial-window--show-overlays ()
-  "Display key overlays on all windows.
+  "Display key hints in header-line of all windows.
 Returns the key assignments alist for use in selection."
-  (let ((assignments (spatial-window--assign-keys))
-        (window-starts (mapcar (lambda (w) (cons w (window-start w)))
-                               (spatial-window--frame-windows))))
+  (setq spatial-window--saved-header-lines nil)
+  (let ((assignments (spatial-window--assign-keys)))
     (dolist (pair assignments)
       (let* ((window (car pair))
              (keys (cdr pair))
-             (grid-str (concat (spatial-window--format-key-grid keys) "\n"))
-             (pos (spatial-window--get-overlay-position window))
-             (buf (window-buffer window))
-             (ol (make-overlay pos pos buf)))
-        (overlay-put ol 'before-string (propertize grid-str 'face 'spatial-window-overlay-face))
-        (overlay-put ol 'window window)
-        (overlay-put ol 'priority 1000)
-        (push ol spatial-window--overlays)))
-    ;; Restore window positions to prevent scrolling
-    (dolist (ws window-starts)
-      (set-window-start (car ws) (cdr ws) t))
+             (grid-str (spatial-window--format-key-grid-single-line keys))
+             (buf (window-buffer window)))
+        ;; Save original header-line-format
+        (push (cons window (cons buf (buffer-local-value 'header-line-format buf)))
+              spatial-window--saved-header-lines)
+        ;; Set new header-line for this buffer
+        (with-current-buffer buf
+          (setq-local header-line-format
+                      (propertize (concat " " grid-str)
+                                  'face 'spatial-window-overlay-face)))))
+    (force-mode-line-update t)
     assignments))
 
 (defun spatial-window--remove-overlays ()
-  "Remove all spatial-window overlays."
-  (mapc #'delete-overlay spatial-window--overlays)
-  (setq spatial-window--overlays nil))
+  "Restore original header-lines in all windows."
+  ;; Restore saved header-lines
+  (dolist (saved spatial-window--saved-header-lines)
+    (let ((buf (cadr saved))
+          (orig-header (cddr saved)))
+      (when (buffer-live-p buf)
+        (with-current-buffer buf
+          (setq-local header-line-format orig-header)))))
+  (setq spatial-window--saved-header-lines nil)
+  (setq spatial-window--overlays nil)
+  (force-mode-line-update t))
 
 (defun spatial-window--select-by-key ()
   "Select window corresponding to the key that invoked this command."
