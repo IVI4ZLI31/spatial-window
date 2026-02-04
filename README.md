@@ -55,6 +55,16 @@ Or define a custom layout:
                           ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
 ```
 
+## Alternatives
+
+| Package                                                   | Approach                                                                           |
+|-----------------------------------------------------------|------------------------------------------------------------------------------------|
+| [ace-window](https://github.com/abo-abo/ace-window)       | Labels windows with sequential chars (1,2,3 or a,b,c). Read label, then press key. |
+| [winum](https://github.com/deb0ch/emacs-winum)            | Numbers windows 1-9 in mode-line. Press number to switch.                          |
+| [switch-window](https://github.com/dimitri/switch-window) | Large overlay numbers. Visual but requires reading.                                |
+
+**spatial-window**: No labels to read. Look at window → fingers know the key. Keyboard position = screen position.
+
 ## License
 
 GPL-3.0
