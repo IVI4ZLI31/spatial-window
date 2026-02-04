@@ -161,24 +161,30 @@ middle row is skipped for that column to improve the spatial mapping."
                                   info-grid)
                           kbd-rows))
          (result (make-hash-table :test 'eq)))
-    ;; Assign keys to windows
-    (cl-loop for kbd-row from 0 below kbd-rows
-             do (cl-loop for kbd-col from 0 below kbd-cols
-                         for grid-col = (spatial-window--boundary-lookup kbd-col col-boundaries)
-                         for grid-row = (spatial-window--boundary-lookup kbd-row row-boundaries)
-                         for distinct-in-col = (nth grid-col windows-per-col)
-                         ;; Skip middle row if this column has exactly 2 windows
-                         unless (and (= kbd-row 1) (= kbd-rows 3) (= distinct-in-col 2))
-                         do (let* ((key (nth kbd-col (nth kbd-row kbd-layout)))
-                                   (info (nth grid-col (nth grid-row info-grid)))
-                                   (win (plist-get info :window)))
-                              (push key (gethash win result)))))
-    ;; Convert hash to alist, reverse key lists to preserve order
-    (let ((alist nil))
-      (maphash (lambda (win keys)
-                 (push (cons win (nreverse keys)) alist))
-               result)
-      alist)))
+    ;; Check if we have too many windows for the keyboard layout
+    (if (not (and col-boundaries row-boundaries))
+        (progn
+          (message "Too many windows for keyboard layout (%d cols, %d rows available)"
+                   kbd-cols kbd-rows)
+          nil)
+      ;; Assign keys to windows
+      (cl-loop for kbd-row from 0 below kbd-rows
+               do (cl-loop for kbd-col from 0 below kbd-cols
+                           for grid-col = (spatial-window--boundary-lookup kbd-col col-boundaries)
+                           for grid-row = (spatial-window--boundary-lookup kbd-row row-boundaries)
+                           for distinct-in-col = (nth grid-col windows-per-col)
+                           ;; Skip middle row if this column has exactly 2 windows
+                           unless (and (= kbd-row 1) (= kbd-rows 3) (= distinct-in-col 2))
+                           do (let* ((key (nth kbd-col (nth kbd-row kbd-layout)))
+                                     (info (nth grid-col (nth grid-row info-grid)))
+                                     (win (plist-get info :window)))
+                                (push key (gethash win result)))))
+      ;; Convert hash to alist, reverse key lists to preserve order
+      (let ((alist nil))
+        (maphash (lambda (win keys)
+                   (push (cons win (nreverse keys)) alist))
+                 result)
+        alist))))
 
 (defun spatial-window--count-distinct-per-column (grid)
   "Count distinct windows in each column of GRID."
@@ -192,12 +198,13 @@ middle row is skipped for that column to improve the spatial mapping."
 (defun spatial-window--compute-boundaries (percentages key-count)
   "Compute grid cell boundaries based on PERCENTAGES for KEY-COUNT keys.
 Returns list of (start-key . end-key) for each grid cell, non-overlapping.
-Each cell is guaranteed at least 1 key."
+Each cell is guaranteed at least 1 key.  Returns nil if there are more
+cells than keys (e.g., more window rows than keyboard rows)."
   (let* ((n (length percentages))
          (boundaries nil))
     (if (> n key-count)
-        ;; More cells than keys: error case
-        (error "Cannot assign keys: %d cells but only %d keys" n key-count)
+        ;; More cells than keys: return nil
+        nil
       ;; Distribute keys: each cell gets at least 1, remainder by percentage
       (let* ((remainder (- key-count n))
              (prev-end -1))
@@ -241,7 +248,8 @@ Returns a string showing which keys are assigned, displayed in keyboard layout."
 
 (defun spatial-window--show-overlays ()
   "Display key hints as posframes in all windows.
-Stores assignments in `spatial-window--current-assignments' for selection."
+Stores assignments in `spatial-window--current-assignments' for selection.
+Returns non-nil if overlays were shown, nil if there are too many windows."
   (require 'posframe)
   ;; Clean up any existing posframes first
   (spatial-window--remove-overlays)
@@ -250,25 +258,27 @@ Stores assignments in `spatial-window--current-assignments' for selection."
         (idx 0))
     ;; Store assignments for use by spatial-window--select-by-key
     (setq spatial-window--current-assignments assignments)
-    (dolist (pair assignments)
-      (let* ((window (car pair))
-             (keys (cdr pair))
-             (grid-str (spatial-window--format-key-grid keys))
-             (buf-name (format " *spatial-window-%d*" idx))
-             (edges (window-pixel-edges window))
-             (left (nth 0 edges))
-             (top (nth 1 edges)))
-        (setq idx (1+ idx))
-        (push buf-name spatial-window--posframe-buffers)
-        (with-current-buffer (get-buffer-create buf-name)
-          (erase-buffer)
-          (insert grid-str))
-        (let ((x left) (y top))  ; explicit rebinding for closure
-          (posframe-show buf-name
-                         :poshandler (lambda (_info) (cons x y))
-                         :foreground-color (face-foreground 'spatial-window-overlay-face nil t)
-                         :background-color (face-background 'spatial-window-overlay-face nil t)
-                         :internal-border-width 4))))))
+    (when assignments
+      (dolist (pair assignments)
+        (let* ((window (car pair))
+               (keys (cdr pair))
+               (grid-str (spatial-window--format-key-grid keys))
+               (buf-name (format " *spatial-window-%d*" idx))
+               (edges (window-pixel-edges window))
+               (left (nth 0 edges))
+               (top (nth 1 edges)))
+          (setq idx (1+ idx))
+          (push buf-name spatial-window--posframe-buffers)
+          (with-current-buffer (get-buffer-create buf-name)
+            (erase-buffer)
+            (insert grid-str))
+          (let ((x left) (y top))  ; explicit rebinding for closure
+            (posframe-show buf-name
+                           :poshandler (lambda (_info) (cons x y))
+                           :foreground-color (face-foreground 'spatial-window-overlay-face nil t)
+                           :background-color (face-background 'spatial-window-overlay-face nil t)
+                           :internal-border-width 4))))
+      t)))
 
 (defun spatial-window--remove-overlays ()
   "Hide and cleanup all posframes."
@@ -310,11 +320,11 @@ Shows keyboard grid overlays in each window during selection."
   (let ((windows (spatial-window--frame-windows)))
     (if (<= (length windows) 1)
         (message "Only one window")
-      (spatial-window--show-overlays)
-      (set-transient-map
-       (spatial-window--make-selection-keymap)
-       nil
-       #'spatial-window--remove-overlays))))
+      (when (spatial-window--show-overlays)
+        (set-transient-map
+         (spatial-window--make-selection-keymap)
+         nil
+         #'spatial-window--remove-overlays)))))
 
 (provide 'spatial-window)
 
