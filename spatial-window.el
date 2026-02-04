@@ -166,14 +166,18 @@ middle row is skipped for that column to improve the spatial mapping."
     ;; Check if we have too many windows for the keyboard layout
     (if (not (and col-boundaries row-boundaries))
         (progn
-          (message "Too many windows: %s"
+          (message "Too many %s: %s"
+                   (mapconcat #'identity
+                              (delq nil (list (unless col-boundaries "cols")
+                                              (unless row-boundaries "rows")))
+                              " and ")
                    (mapconcat #'identity
                               (delq nil
-                                    (list (when (not col-boundaries)
-                                            (format "%d cols (max %d)" grid-cols kbd-cols))
-                                          (when (not row-boundaries)
-                                            (format "%d rows (max %d)" grid-rows kbd-rows))))
-                              ", "))
+                                    (list (unless col-boundaries
+                                            (format "%d found of %d max" grid-cols kbd-cols))
+                                          (unless row-boundaries
+                                            (format "%d found of %d max" grid-rows kbd-rows))))
+                              "; "))
           nil)
       ;; Assign keys to windows
       (cl-loop for kbd-row from 0 below kbd-rows
