@@ -344,21 +344,16 @@ Returns the key assignments alist for use in selection."
       (let* ((window (car pair))
              (keys (cdr pair))
              (grid-str (spatial-window--format-key-grid keys))
-             (buf-name (format " *spatial-window-%d*" idx))
-             (edges (window-inside-pixel-edges window))
-             (x (+ (nth 0 edges) 10))
-             (y (+ (nth 1 edges) 10)))
+             (buf-name (format " *spatial-window-%d*" idx)))
         (setq idx (1+ idx))
         (push buf-name spatial-window--posframe-buffers)
-        (posframe-show buf-name
-                       :string grid-str
-                       :position (point-min)
-                       :parent-frame nil
-                       :x x
-                       :y y
-                       :foreground-color (face-foreground 'spatial-window-overlay-face nil t)
-                       :background-color (face-background 'spatial-window-overlay-face nil t)
-                       :internal-border-width 4)))
+        (with-selected-window window
+          (posframe-show buf-name
+                         :string grid-str
+                         :position (window-start window)
+                         :foreground-color (face-foreground 'spatial-window-overlay-face nil t)
+                         :background-color (face-background 'spatial-window-overlay-face nil t)
+                         :internal-border-width 4))))
     assignments))
 
 (defun spatial-window--remove-overlays ()
