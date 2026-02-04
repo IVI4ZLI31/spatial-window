@@ -427,6 +427,13 @@ If minibuffer is active, SPC selects it."
 
 ;;; Kill mode functions
 
+(defun spatial-window--kill-mode-message ()
+  "Display kill mode status message."
+  (let ((n (length spatial-window--selected-windows)))
+    (if (zerop n)
+        (message "Kill mode: select windows, RET to kill, C-g to abort")
+      (message "Kill mode: %d window(s) selected. RET to kill, C-g to abort" n))))
+
 (defun spatial-window--toggle-selection ()
   "Toggle the selection of the window corresponding to the pressed key."
   (interactive)
@@ -441,7 +448,8 @@ If minibuffer is active, SPC selects it."
                   (delq win spatial-window--selected-windows))
           (push win spatial-window--selected-windows))
         ;; Refresh overlays to show updated selection
-        (spatial-window--show-overlays spatial-window--selected-windows)))))
+        (spatial-window--show-overlays spatial-window--selected-windows)
+        (spatial-window--kill-mode-message)))))
 
 (defun spatial-window--execute-kill ()
   "Kill all selected windows and clean up."
@@ -475,7 +483,7 @@ Layout keys toggle selection, RET executes kill, C-g aborts."
   (setq spatial-window--pending-action 'kill
         spatial-window--selected-windows nil)
   (when (spatial-window--show-overlays)
-    (message "Kill mode: select windows, RET to kill, C-g to abort")
+    (spatial-window--kill-mode-message)
     (set-transient-map
      (spatial-window--make-kill-keymap)
      t  ; keep map active until explicitly exited
