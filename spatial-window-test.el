@@ -270,16 +270,16 @@ All 7 distinct windows must get at least 1 key."
     ;; Should produce 3-line output
     (should (= (length (split-string grid "\n")) 3))
     ;; First row should show q w e and dots for rest
-    (should (string-match-p "^q w e \\. \\. \\. \\. \\. \\. \\.$" (car (split-string grid "\n"))))
+    (should (string-match-p "^q w e · · · · · · ·$" (car (split-string grid "\n"))))
     ;; Second row should show a s and dots
-    (should (string-match-p "^a s \\. \\. \\. \\. \\. \\. \\. \\.$" (nth 1 (split-string grid "\n"))))
+    (should (string-match-p "^a s · · · · · · · ·$" (nth 1 (split-string grid "\n"))))
     ;; Third row should be all dots
-    (should (string-match-p "^\\. \\. \\. \\. \\. \\. \\. \\. \\. \\.$" (nth 2 (split-string grid "\n"))))))
+    (should (string-match-p "^· · · · · · · · · ·$" (nth 2 (split-string grid "\n"))))))
 
 (ert-deftest spatial-window-test-format-key-grid-empty ()
   "Empty key list produces all dots."
   (let ((grid (spatial-window--format-key-grid '())))
-    (should (string-match-p "^\\. \\. \\. \\. \\. \\. \\. \\. \\. \\.$" (car (split-string grid "\n"))))))
+    (should (string-match-p "^· · · · · · · · · ·$" (car (split-string grid "\n"))))))
 
 (ert-deftest spatial-window-test-format-key-grid-all-keys ()
   "All keys assigned shows full keyboard."

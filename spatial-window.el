@@ -297,7 +297,7 @@ Returns a string showing which keys are assigned, displayed in keyboard layout."
      (lambda (row)
        (mapconcat
         (lambda (key)
-          (if (gethash key key-set) key "."))
+          (if (gethash key key-set) key "·"))
         row " "))
      (spatial-window--get-layout)
      "\n")))
