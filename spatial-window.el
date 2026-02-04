@@ -425,10 +425,51 @@ If minibuffer is active, SPC selects it."
       (define-key map (kbd "SPC") #'spatial-window--select-minibuffer))
     map))
 
-;;; Kill mode functions
+;;; Kill mode functions (single kill)
 
-(defun spatial-window--kill-mode-message ()
-  "Display kill mode status message."
+(defun spatial-window--kill-by-key ()
+  "Kill the window corresponding to the pressed key."
+  (interactive)
+  (let* ((key (this-command-keys))
+         (target (cl-find-if (lambda (pair)
+                               (member key (cdr pair)))
+                             spatial-window--current-assignments)))
+    (when target
+      (let ((win (car target)))
+        (spatial-window--remove-overlays)
+        (spatial-window--reset-state)
+        (when (window-live-p win)
+          (delete-window win))
+        (message "Killed window")))))
+
+(defun spatial-window--make-kill-keymap ()
+  "Build transient keymap for kill mode."
+  (let ((map (make-sparse-keymap)))
+    (dolist (row (spatial-window--get-layout))
+      (dolist (key row)
+        (define-key map (kbd key) #'spatial-window--kill-by-key)))
+    (define-key map (kbd "C-g") #'spatial-window--abort)
+    map))
+
+(defun spatial-window--cleanup-kill-mode ()
+  "Clean up after kill mode ends."
+  (spatial-window--remove-overlays)
+  (spatial-window--reset-state))
+
+(defun spatial-window--enter-kill-mode ()
+  "Enter kill mode for deleting one window."
+  (setq spatial-window--pending-action 'kill)
+  (when (spatial-window--show-overlays)
+    (message "Select window to kill. C-g to abort.")
+    (set-transient-map
+     (spatial-window--make-kill-keymap)
+     nil
+     #'spatial-window--cleanup-kill-mode)))
+
+;;; Kill-multi mode functions
+
+(defun spatial-window--kill-multi-mode-message ()
+  "Display kill-multi mode status message."
   (let ((n (length spatial-window--selected-windows)))
     (message "<enter> to kill %d window%s. C-g to abort."
              n (if (= n 1) "" "s"))))
@@ -448,9 +489,9 @@ If minibuffer is active, SPC selects it."
           (push win spatial-window--selected-windows))
         ;; Refresh overlays to show updated selection
         (spatial-window--show-overlays spatial-window--selected-windows)
-        (spatial-window--kill-mode-message)))))
+        (spatial-window--kill-multi-mode-message)))))
 
-(defun spatial-window--execute-kill ()
+(defun spatial-window--execute-kill-multi ()
   "Kill all selected windows and clean up."
   (interactive)
   (let ((windows-to-kill spatial-window--selected-windows))
@@ -461,68 +502,32 @@ If minibuffer is active, SPC selects it."
         (delete-window win)))
     (message "Killed %d window(s)" (length windows-to-kill))))
 
-(defun spatial-window--cleanup-kill-mode ()
-  "Clean up after kill mode ends."
+(defun spatial-window--cleanup-kill-multi-mode ()
+  "Clean up after kill-multi mode ends."
   (spatial-window--remove-overlays)
   (spatial-window--reset-state))
 
-(defun spatial-window--make-kill-keymap ()
-  "Build transient keymap for kill mode.
+(defun spatial-window--make-kill-multi-keymap ()
+  "Build transient keymap for kill-multi mode.
 Layout keys toggle selection, RET executes kill, C-g aborts."
   (let ((map (make-sparse-keymap)))
     (dolist (row (spatial-window--get-layout))
       (dolist (key row)
         (define-key map (kbd key) #'spatial-window--toggle-selection)))
-    (define-key map (kbd "RET") #'spatial-window--execute-kill)
+    (define-key map (kbd "RET") #'spatial-window--execute-kill-multi)
     (define-key map (kbd "C-g") #'spatial-window--abort)
     map))
 
-(defun spatial-window--enter-kill-mode ()
-  "Enter multi-kill mode for selecting multiple windows to delete."
-  (setq spatial-window--pending-action 'kill
+(defun spatial-window--enter-kill-multi-mode ()
+  "Enter kill-multi mode for selecting multiple windows to delete."
+  (setq spatial-window--pending-action 'kill-multi
         spatial-window--selected-windows nil)
   (when (spatial-window--show-overlays)
-    (spatial-window--kill-mode-message)
+    (spatial-window--kill-multi-mode-message)
     (set-transient-map
-     (spatial-window--make-kill-keymap)
+     (spatial-window--make-kill-multi-keymap)
      t  ; keep map active until explicitly exited
-     #'spatial-window--cleanup-kill-mode)))
-
-;;; Single kill mode functions
-
-(defun spatial-window--single-kill-by-key ()
-  "Kill the window corresponding to the pressed key."
-  (interactive)
-  (let* ((key (this-command-keys))
-         (target (cl-find-if (lambda (pair)
-                               (member key (cdr pair)))
-                             spatial-window--current-assignments)))
-    (when target
-      (let ((win (car target)))
-        (spatial-window--remove-overlays)
-        (spatial-window--reset-state)
-        (when (window-live-p win)
-          (delete-window win))
-        (message "Killed window")))))
-
-(defun spatial-window--make-single-kill-keymap ()
-  "Build transient keymap for single kill mode."
-  (let ((map (make-sparse-keymap)))
-    (dolist (row (spatial-window--get-layout))
-      (dolist (key row)
-        (define-key map (kbd key) #'spatial-window--single-kill-by-key)))
-    (define-key map (kbd "C-g") #'spatial-window--abort)
-    map))
-
-(defun spatial-window--enter-single-kill-mode ()
-  "Enter single kill mode for deleting one window."
-  (setq spatial-window--pending-action 'single-kill)
-  (when (spatial-window--show-overlays)
-    (message "Select window to kill. C-g to abort.")
-    (set-transient-map
-     (spatial-window--make-single-kill-keymap)
-     nil
-     #'spatial-window--cleanup-kill-mode)))
+     #'spatial-window--cleanup-kill-multi-mode)))
 
 ;;; Swap mode functions
 
@@ -594,11 +599,11 @@ Layout keys toggle selection, RET executes kill, C-g aborts."
 
 (defun spatial-window--prompt-action ()
   "Prompt for action type and dispatch.
-k = single kill, K = multi-kill, s = swap."
+k = kill, K = kill-multi, s = swap."
   (let ((action (read-char-choice "(k)ill, (K) multi-kill, or (s)wap: " '(?k ?K ?s))))
     (pcase action
-      (?k (spatial-window--enter-single-kill-mode))
-      (?K (spatial-window--enter-kill-mode))
+      (?k (spatial-window--enter-kill-mode))
+      (?K (spatial-window--enter-kill-multi-mode))
       (?s (spatial-window--enter-swap-mode)))))
 
 ;;;###autoload
