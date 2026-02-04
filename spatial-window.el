@@ -120,7 +120,7 @@ Spanning windows appear in all cells they occupy."
    (t (list (list tree)))))
 
 (defun spatial-window--merge-horizontal (grids)
-  "Merge GRIDS horizontally (side by side).
+  "Merge GRIDS horizontally (left-right split).
 Shorter grids have their last row repeated to fill gaps."
   (let ((max-rows (apply #'max (mapcar #'length grids))))
     (cl-loop for row-idx below max-rows
@@ -129,7 +129,7 @@ Shorter grids have their last row repeated to fill gaps."
                                          (car (last grid)))))))
 
 (defun spatial-window--merge-vertical (grids)
-  "Merge GRIDS vertically (stacked).
+  "Merge GRIDS vertically (top-bottom split).
 Narrower grids have their last column repeated to fill gaps."
   (let ((max-cols (apply #'max (mapcar (lambda (g)
                                          (apply #'max (mapcar #'length g)))

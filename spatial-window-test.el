@@ -67,7 +67,7 @@
     (should (equal (spatial-window--count-distinct-per-row grid) '(2 2)))))
 
 (ert-deftest spatial-window-test-assign-keys-2-left-1-right ()
-  "2 windows stacked left, 1 spanning right: right gets all 3 rows."
+  "2 windows top-bottom left, 1 spanning right: right gets all 3 rows."
   (let* ((win-top-left 'win-top-left)
          (win-bottom-left 'win-bottom-left)
          (win-right 'win-right)
@@ -112,7 +112,7 @@
         (should (= (length keys) 30))))))
 
 (ert-deftest spatial-window-test-assign-keys-2-columns ()
-  "2 side-by-side windows: each gets half columns, all rows, middle cols skipped."
+  "2 left-right windows: each gets half columns, all rows, middle cols skipped."
   (let* ((win-left 'win-left)
          (win-right 'win-right)
          (mock-grid `(((:window ,win-left :h-pct 0.5 :v-pct 1.0)
