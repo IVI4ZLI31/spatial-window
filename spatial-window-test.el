@@ -283,7 +283,7 @@ All 7 distinct windows must get at least 1 key."
 
 (ert-deftest spatial-window-test-format-key-grid-all-keys ()
   "All keys assigned shows full keyboard."
-  (let* ((all-keys (apply #'append spatial-window-keyboard-layout))
+  (let* ((all-keys (apply #'append (spatial-window--get-layout)))
          (grid (spatial-window--format-key-grid all-keys)))
     ;; First row should show all keys
     (should (string-match-p "^q w e r t y u i o p$" (car (split-string grid "\n"))))))

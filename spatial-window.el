@@ -50,14 +50,41 @@
   :group 'windows
   :prefix "spatial-window-")
 
-(defcustom spatial-window-keyboard-layout
+(defconst spatial-window-layout-qwerty
   '(("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
     ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")
     ("z" "x" "c" "v" "b" "n" "m" "," "." "/"))
-  "Keyboard layout as a list of rows, each row a list of keys.
-This represents the spatial arrangement of keys on your keyboard."
-  :type '(repeat (repeat string))
+  "QWERTY keyboard layout.")
+
+(defconst spatial-window-layout-dvorak
+  '(("'" "," "." "p" "y" "f" "g" "c" "r" "l")
+    ("a" "o" "e" "u" "i" "d" "h" "t" "n" "s")
+    (";" "q" "j" "k" "x" "b" "m" "w" "v" "z"))
+  "Dvorak keyboard layout.")
+
+(defconst spatial-window-layout-colemak
+  '(("q" "w" "f" "p" "g" "j" "l" "u" "y" ";")
+    ("a" "r" "s" "t" "d" "h" "n" "e" "i" "o")
+    ("z" "x" "c" "v" "b" "k" "m" "," "." "/"))
+  "Colemak keyboard layout.")
+
+(defcustom spatial-window-keyboard-layout 'qwerty
+  "Keyboard layout for spatial window selection.
+Can be a symbol naming a preset layout or a custom list of rows."
+  :type '(choice (const :tag "QWERTY" qwerty)
+                 (const :tag "Dvorak" dvorak)
+                 (const :tag "Colemak" colemak)
+                 (repeat :tag "Custom" (repeat string)))
   :group 'spatial-window)
+
+(defun spatial-window--get-layout ()
+  "Return the keyboard layout as a list of rows."
+  (pcase spatial-window-keyboard-layout
+    ('qwerty spatial-window-layout-qwerty)
+    ('dvorak spatial-window-layout-dvorak)
+    ('colemak spatial-window-layout-colemak)
+    ((pred listp) spatial-window-keyboard-layout)
+    (_ spatial-window-layout-qwerty)))
 
 (defface spatial-window-overlay-face
   '((t (:foreground "red" :background "white" :weight bold)))
@@ -159,7 +186,7 @@ Spanning windows appear in all cells they occupy."
 Returns alist of (window . (list of keys)).
 When a column has exactly 2 windows and the keyboard has 3 rows, the
 middle row is skipped for that column to improve the spatial mapping."
-  (let ((kbd-layout spatial-window-keyboard-layout))
+  (let ((kbd-layout (spatial-window--get-layout)))
     ;; Validate keyboard layout: all rows must have same length
     (unless (apply #'= (mapcar #'length kbd-layout))
       (message "Invalid keyboard layout: rows have different lengths")
@@ -272,7 +299,7 @@ Returns a string showing which keys are assigned, displayed in keyboard layout."
         (lambda (key)
           (if (gethash key key-set) key "."))
         row " "))
-     spatial-window-keyboard-layout
+     (spatial-window--get-layout)
      "\n")))
 
 (defun spatial-window--show-overlays ()
@@ -335,7 +362,7 @@ Looks up the key in `spatial-window--current-assignments' to find the target."
 (defun spatial-window--make-selection-keymap ()
   "Build transient keymap with all keyboard layout keys."
   (let ((map (make-sparse-keymap)))
-    (dolist (row spatial-window-keyboard-layout)
+    (dolist (row (spatial-window--get-layout))
       (dolist (key row)
         (define-key map (kbd key) #'spatial-window--select-by-key)))
     (define-key map (kbd "C-g") #'spatial-window--abort)
