@@ -33,16 +33,16 @@ that window.
 Presets: `qwerty` (default), `dvorak`, `colemak`
 
 ```elisp
-(setq spatial-window-keyboard-layout 'dvorak)
+(customize-set-variable 'spatial-window-keyboard-layout 'dvorak)
 ```
 
 Or define a custom layout:
 
 ```elisp
-(setq spatial-window-keyboard-layout
-      '(("1" "2" "3" "4" "5" "6" "7" "8" "9" "0")
-        ("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
-        ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
+(customize-set-variable 'spatial-window-keyboard-layout
+                        '(("1" "2" "3" "4" "5" "6" "7" "8" "9" "0")
+                          ("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
+                          ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
 ```
 
 ## License
