@@ -376,13 +376,19 @@ Returns the key assignments alist for use in selection."
     (when target
       (select-window target))))
 
+(defun spatial-window--abort ()
+  "Abort window selection and clean up overlays."
+  (interactive)
+  (spatial-window--remove-overlays)
+  (keyboard-quit))
+
 (defun spatial-window--make-selection-keymap ()
   "Build transient keymap with all keyboard layout keys."
   (let ((map (make-sparse-keymap)))
     (dolist (row spatial-window-keyboard-layout)
       (dolist (key row)
         (define-key map (kbd key) #'spatial-window--select-by-key)))
-    (define-key map (kbd "C-g") #'keyboard-quit)
+    (define-key map (kbd "C-g") #'spatial-window--abort)
     map))
 
 ;;;###autoload
