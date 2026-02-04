@@ -54,6 +54,20 @@ This represents the spatial arrangement of keys on your keyboard."
   :type '(repeat (repeat string))
   :group 'spatial-window)
 
+(defcustom spatial-window-overlay-position 'top-left
+  "Position of the key overlay in each window."
+  :type '(choice (const :tag "Top Left" top-left)
+                 (const :tag "Center" center))
+  :group 'spatial-window)
+
+(defface spatial-window-overlay-face
+  '((t (:foreground "red" :background "white" :weight bold)))
+  "Face for spatial-window key overlay."
+  :group 'spatial-window)
+
+(defvar spatial-window--overlays nil
+  "List of active overlays during window selection.")
+
 (defun spatial-window--frame-windows ()
   "Return list of windows in current frame, excluding minibuffer."
   (window-list nil 'no-minibuf))
@@ -307,21 +321,83 @@ Each cell is guaranteed at least 1 key."
               (setq best-window win))))
         best-window))))
 
+(defun spatial-window--format-key-grid (keys)
+  "Format KEYS as a keyboard grid string.
+Returns a string showing which keys are assigned, displayed in keyboard layout."
+  (let ((key-set (make-hash-table :test 'equal)))
+    (dolist (k keys)
+      (puthash k t key-set))
+    (mapconcat
+     (lambda (row)
+       (mapconcat
+        (lambda (key)
+          (if (gethash key key-set) key "."))
+        row " "))
+     spatial-window-keyboard-layout
+     "\n")))
+
+(defun spatial-window--get-overlay-position (window)
+  "Return buffer position for overlay in WINDOW based on config."
+  (with-selected-window window
+    (pcase spatial-window-overlay-position
+      ('top-left (window-start window))
+      ('center (save-excursion
+                 (goto-char (window-start window))
+                 (forward-line (/ (window-body-height) 2))
+                 (point))))))
+
+(defun spatial-window--show-overlays ()
+  "Display key overlays on all windows.
+Returns the key assignments alist for use in selection."
+  (let ((assignments (spatial-window--assign-keys)))
+    (dolist (pair assignments)
+      (let* ((window (car pair))
+             (keys (cdr pair))
+             (grid-str (spatial-window--format-key-grid keys))
+             (pos (spatial-window--get-overlay-position window))
+             (buf (window-buffer window))
+             (ol (make-overlay pos (min (1+ pos) (with-current-buffer buf (point-max))) buf)))
+        (overlay-put ol 'display grid-str)
+        (overlay-put ol 'face 'spatial-window-overlay-face)
+        (overlay-put ol 'priority 1000)
+        (push ol spatial-window--overlays)))
+    assignments))
+
+(defun spatial-window--remove-overlays ()
+  "Remove all spatial-window overlays."
+  (mapc #'delete-overlay spatial-window--overlays)
+  (setq spatial-window--overlays nil))
+
+(defun spatial-window--select-by-key ()
+  "Select window corresponding to the key that invoked this command."
+  (interactive)
+  (let* ((key (this-command-keys))
+         (target (spatial-window--find-window-for-key key)))
+    (when target
+      (select-window target))))
+
+(defun spatial-window--make-selection-keymap ()
+  "Build transient keymap with all keyboard layout keys."
+  (let ((map (make-sparse-keymap)))
+    (dolist (row spatial-window-keyboard-layout)
+      (dolist (key row)
+        (define-key map (kbd key) #'spatial-window--select-by-key)))
+    (define-key map (kbd "C-g") #'keyboard-quit)
+    map))
+
 ;;;###autoload
 (defun spatial-window-select ()
   "Select a window by pressing a key corresponding to its spatial position.
-The keyboard layout maps to the frame layout - press a key whose position
-on your keyboard matches the window's position on screen."
+Shows keyboard grid overlays in each window during selection."
   (interactive)
   (let ((windows (spatial-window--frame-windows)))
     (if (<= (length windows) 1)
         (message "Only one window")
-      (message "Press key for window position...")
-      (let* ((key (char-to-string (read-char)))
-             (target-window (spatial-window--find-window-for-key key)))
-        (if target-window
-            (select-window target-window)
-          (message "No window found for key: %s" key))))))
+      (spatial-window--show-overlays)
+      (set-transient-map
+       (spatial-window--make-selection-keymap)
+       t
+       #'spatial-window--remove-overlays))))
 
 (provide 'spatial-window)
 

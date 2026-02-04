@@ -219,6 +219,30 @@
     (should (= (car (nth 0 bounds)) 0))
     (should (= (cdr (nth 1 bounds)) 9))))
 
+(ert-deftest spatial-window-test-format-key-grid ()
+  "Format keys as keyboard grid shows assigned keys and dots for unassigned."
+  (let ((grid (spatial-window--format-key-grid '("q" "w" "e" "a" "s"))))
+    ;; Should produce 3-line output
+    (should (= (length (split-string grid "\n")) 3))
+    ;; First row should show q w e and dots for rest
+    (should (string-match-p "^q w e \\. \\. \\. \\. \\. \\. \\.$" (car (split-string grid "\n"))))
+    ;; Second row should show a s and dots
+    (should (string-match-p "^a s \\. \\. \\. \\. \\. \\. \\. \\.$" (nth 1 (split-string grid "\n"))))
+    ;; Third row should be all dots
+    (should (string-match-p "^\\. \\. \\. \\. \\. \\. \\. \\. \\. \\.$" (nth 2 (split-string grid "\n"))))))
+
+(ert-deftest spatial-window-test-format-key-grid-empty ()
+  "Empty key list produces all dots."
+  (let ((grid (spatial-window--format-key-grid '())))
+    (should (string-match-p "^\\. \\. \\. \\. \\. \\. \\. \\. \\. \\.$" (car (split-string grid "\n"))))))
+
+(ert-deftest spatial-window-test-format-key-grid-all-keys ()
+  "All keys assigned shows full keyboard."
+  (let* ((all-keys (apply #'append spatial-window-keyboard-layout))
+         (grid (spatial-window--format-key-grid all-keys)))
+    ;; First row should show all keys
+    (should (string-match-p "^q w e r t y u i o p$" (car (split-string grid "\n"))))))
+
 (provide 'spatial-window-test)
 
 ;;; spatial-window-test.el ends here
