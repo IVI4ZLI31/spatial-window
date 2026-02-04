@@ -151,20 +151,15 @@
              (left-keys (cdr (assq win-left result)))
              (mid-top-keys (cdr (assq win-mid-top result)))
              (mid-bot-keys (cdr (assq win-mid-bot result)))
-             (right-keys (cdr (assq win-right result)))
-             (middle-row '("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
-        ;; Left column: ~18% = ~2 cols, all 3 rows (no vertical split)
-        (should (= (length left-keys) 6))  ; 2 cols * 3 rows
-        (should (seq-intersection left-keys middle-row))  ; has middle row
-        ;; Right column: ~25% = ~2-3 cols, all 3 rows
-        (should (>= (length right-keys) 6))
-        (should (seq-intersection right-keys middle-row))  ; has middle row
-        ;; Middle column has top-bottom split, so middle kbd row skipped
-        (should-not (seq-intersection mid-top-keys middle-row))
-        (should-not (seq-intersection mid-bot-keys middle-row))
-        ;; Mid-top gets top keyboard row, mid-bot gets bottom row
-        (should (seq-intersection mid-top-keys '("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")))
-        (should (seq-intersection mid-bot-keys '("z" "x" "c" "v" "b" "n" "m" "," "." "/")))))))
+             (right-keys (cdr (assq win-right result))))
+        ;; Left: cols 0-1, all 3 rows (spans full height)
+        (should (seq-set-equal-p left-keys '("q" "w" "a" "s" "z" "x")))
+        ;; Right: cols 8-9, all 3 rows (spans full height)
+        (should (seq-set-equal-p right-keys '("o" "p" "l" ";" "." "/")))
+        ;; Mid-top: cols 2-7, top row only (middle row skipped for 2-way split)
+        (should (seq-set-equal-p mid-top-keys '("e" "r" "t" "y" "u" "i")))
+        ;; Mid-bot: cols 2-7, bottom row only
+        (should (seq-set-equal-p mid-bot-keys '("c" "v" "b" "n" "m" ",")))))))
 
 (provide 'spatial-window-test)
 
