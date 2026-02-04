@@ -71,15 +71,14 @@ This represents the spatial arrangement of keys on your keyboard."
   "Return list of windows in current frame, excluding minibuffer."
   (window-list nil 'no-minibuf))
 
-(defun spatial-window--window-grid (&optional frame)
-  "Return a 2D grid of windows for FRAME based on pixel positions.
-The grid is a list of rows, each row a list of windows.
-Spanning windows appear in all cells they occupy."
+(defun spatial-window--grid-geometry (&optional frame)
+  "Return grid geometry for FRAME as (x-coords y-coords edges-list).
+X-COORDS and Y-COORDS are sorted lists of unique pixel boundaries.
+EDGES-LIST is an alist of (window . edges)."
   (let* ((windows (window-list frame 'no-minibuf))
          (edges-list (mapcar (lambda (w)
                                (cons w (window-pixel-edges w)))
                              windows))
-         ;; Collect unique x and y boundaries
          (x-coords (sort (delete-dups
                           (apply #'append
                                  (mapcar (lambda (we)
@@ -91,8 +90,17 @@ Spanning windows appear in all cells they occupy."
                                  (mapcar (lambda (we)
                                            (list (nth 2 we) (nth 4 we)))
                                          edges-list)))
-                         #'<))
-         ;; Build grid by finding window at each cell
+                         #'<)))
+    (list x-coords y-coords edges-list)))
+
+(defun spatial-window--window-grid (&optional frame)
+  "Return a 2D grid of windows for FRAME based on pixel positions.
+The grid is a list of rows, each row a list of windows.
+Spanning windows appear in all cells they occupy."
+  (let* ((geom (spatial-window--grid-geometry frame))
+         (x-coords (nth 0 geom))
+         (y-coords (nth 1 geom))
+         (edges-list (nth 2 geom))
          (grid nil))
     (dolist (y (butlast y-coords))
       (let ((row nil))
@@ -110,6 +118,26 @@ Spanning windows appear in all cells they occupy."
             (push found row)))
         (push (nreverse row) grid)))
     (nreverse grid)))
+
+(defun spatial-window--cell-percentages (&optional frame)
+  "Return (col-pcts . row-pcts) for grid cells in FRAME.
+COL-PCTS is a list of column width percentages.
+ROW-PCTS is a list of row height percentages."
+  (let* ((frame (or frame (selected-frame)))
+         (frame-w (frame-pixel-width frame))
+         (frame-h (frame-pixel-height frame))
+         (geom (spatial-window--grid-geometry frame))
+         (x-coords (nth 0 geom))
+         (y-coords (nth 1 geom)))
+    (cons
+     ;; Column width percentages
+     (cl-loop for i from 0 below (1- (length x-coords))
+              collect (/ (float (- (nth (1+ i) x-coords) (nth i x-coords)))
+                         frame-w))
+     ;; Row height percentages
+     (cl-loop for i from 0 below (1- (length y-coords))
+              collect (/ (float (- (nth (1+ i) y-coords) (nth i y-coords)))
+                         frame-h)))))
 
 (defun spatial-window--window-info (&optional frame)
   "Return 2D grid with window info for FRAME (default: selected frame).
@@ -150,18 +178,12 @@ middle row is skipped for that column to improve the spatial mapping."
          (kbd-cols (length (car kbd-layout)))
          ;; Count distinct windows per grid column (for row skipping)
          (windows-per-col (spatial-window--count-distinct-per-column info-grid))
-         ;; Find column with most distinct windows (for accurate row v-pct)
-         (best-col (cl-position (apply #'max windows-per-col) windows-per-col))
-         ;; Build column boundaries based on h-pct of first row
-         (col-boundaries (spatial-window--compute-boundaries
-                          (mapcar (lambda (info) (plist-get info :h-pct))
-                                  (car info-grid))
-                          kbd-cols))
-         ;; Build row boundaries based on v-pct of column with most subdivisions
-         (row-boundaries (spatial-window--compute-boundaries
-                          (mapcar (lambda (row) (plist-get (nth best-col row) :v-pct))
-                                  info-grid)
-                          kbd-rows))
+         ;; Get actual cell percentages (not window percentages)
+         (cell-pcts (spatial-window--cell-percentages frame))
+         ;; Build column boundaries based on cell widths
+         (col-boundaries (spatial-window--compute-boundaries (car cell-pcts) kbd-cols))
+         ;; Build row boundaries based on cell heights
+         (row-boundaries (spatial-window--compute-boundaries (cdr cell-pcts) kbd-rows))
          (result (make-hash-table :test 'eq)))
     ;; Check if we have too many windows for the keyboard layout
     (if (not (and col-boundaries row-boundaries))
