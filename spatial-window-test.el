@@ -129,6 +129,43 @@
         ;; Middle columns skipped entirely
         (should (null (seq-intersection all-keys middle-cols)))))))
 
+(ert-deftest spatial-window-test-assign-keys-3-columns ()
+  "3 columns: left/right span full height, middle has top-bottom split."
+  ;; Layout: |  left  |  mid-top   | right |
+  ;;         | (18%)  |   (57%)    | (25%) |
+  ;;         |        |  mid-bot   |       |
+  (let* ((win-left 'win-left)
+         (win-mid-top 'win-mid-top)
+         (win-mid-bot 'win-mid-bot)
+         (win-right 'win-right)
+         ;; 2 rows, 3 cols grid
+         (mock-grid `(((:window ,win-left :h-pct 0.18 :v-pct 1.0)
+                       (:window ,win-mid-top :h-pct 0.57 :v-pct 0.5)
+                       (:window ,win-right :h-pct 0.25 :v-pct 1.0))
+                      ((:window ,win-left :h-pct 0.18 :v-pct 1.0)
+                       (:window ,win-mid-bot :h-pct 0.57 :v-pct 0.5)
+                       (:window ,win-right :h-pct 0.25 :v-pct 1.0)))))
+    (cl-letf (((symbol-function 'spatial-window--window-info)
+               (lambda (&optional _frame) mock-grid)))
+      (let* ((result (spatial-window--assign-keys))
+             (left-keys (cdr (assq win-left result)))
+             (mid-top-keys (cdr (assq win-mid-top result)))
+             (mid-bot-keys (cdr (assq win-mid-bot result)))
+             (right-keys (cdr (assq win-right result)))
+             (middle-row '("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
+        ;; Left column: ~18% = ~2 cols, all 3 rows (no vertical split)
+        (should (= (length left-keys) 6))  ; 2 cols * 3 rows
+        (should (seq-intersection left-keys middle-row))  ; has middle row
+        ;; Right column: ~25% = ~2-3 cols, all 3 rows
+        (should (>= (length right-keys) 6))
+        (should (seq-intersection right-keys middle-row))  ; has middle row
+        ;; Middle column has top-bottom split, so middle kbd row skipped
+        (should-not (seq-intersection mid-top-keys middle-row))
+        (should-not (seq-intersection mid-bot-keys middle-row))
+        ;; Mid-top gets top keyboard row, mid-bot gets bottom row
+        (should (seq-intersection mid-top-keys '("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")))
+        (should (seq-intersection mid-bot-keys '("z" "x" "c" "v" "b" "n" "m" "," "." "/")))))))
+
 (provide 'spatial-window-test)
 
 ;;; spatial-window-test.el ends here

@@ -182,14 +182,16 @@ but only for columns/rows that actually have 2 distinct windows."
          ;; Skip middle cols only if clean 2-col split (no vertical subdivisions)
          (skip-middle-cols (and (= grid-cols 2)
                                 (= (apply #'max windows-per-col) 1)))
+         ;; Find column with most distinct windows (for accurate row v-pct)
+         (best-col (cl-position (apply #'max windows-per-col) windows-per-col))
          ;; Build column boundaries based on h-pct of first row
          (col-boundaries (spatial-window--compute-boundaries
                           (mapcar (lambda (info) (plist-get info :h-pct))
                                   (car info-grid))
                           kbd-cols))
-         ;; Build row boundaries based on v-pct of first column
+         ;; Build row boundaries based on v-pct of column with most subdivisions
          (row-boundaries (spatial-window--compute-boundaries
-                          (mapcar (lambda (row) (plist-get (car row) :v-pct))
+                          (mapcar (lambda (row) (plist-get (nth best-col row) :v-pct))
                                   info-grid)
                           kbd-rows))
          (result (make-hash-table :test 'eq)))
@@ -248,16 +250,16 @@ For 2-way splits, skip middle index."
 
 (defun spatial-window--compute-boundaries (percentages key-count)
   "Compute grid cell boundaries based on PERCENTAGES for KEY-COUNT keys.
-Returns list of (start-key . end-key) for each grid cell."
-  (let* ((n (length percentages))
-         (cumulative 0.0)
+Returns list of (start-key . end-key) for each grid cell, non-overlapping."
+  (let* ((cumulative 0.0)
+         (prev-end -1)
          (boundaries nil))
     (dolist (pct percentages)
-      (let* ((start cumulative)
-             (end (+ cumulative pct))
-             (start-key (floor (* start key-count)))
-             (end-key (1- (ceiling (* end key-count)))))
-        (push (cons start-key (max start-key end-key)) boundaries)
+      (let* ((end (+ cumulative pct))
+             (start-key (1+ prev-end))
+             (end-key (max start-key (1- (round (* end key-count))))))
+        (push (cons start-key end-key) boundaries)
+        (setq prev-end end-key)
         (setq cumulative end)))
     (nreverse boundaries)))
 
