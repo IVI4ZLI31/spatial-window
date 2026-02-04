@@ -34,6 +34,21 @@ that window.
 +------------------+------------------+
 ```
 
+### Prefix Actions
+
+With `C-u` prefix, you can kill or swap windows:
+
+| Key | Action | Description |
+|-----|--------|-------------|
+| `k` | Kill | Select one window to delete |
+| `K` | Multi-kill | Select multiple windows, `RET` to delete all |
+| `s` | Swap | Exchange buffers between two windows |
+
+Examples:
+- `C-u M-o k` then press a key to kill that window
+- `C-u M-o K` then press keys to toggle selection, `RET` to kill selected
+- `C-u M-o s` swaps immediately if 2 windows, otherwise select target
+
 ## Customization
 
 `M-x customize-group RET spatial-window RET`
