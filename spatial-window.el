@@ -39,6 +39,9 @@
 
 ;;; Code:
 
+(require 'cl-lib)
+(require 'seq)
+
 (declare-function posframe-show "posframe")
 (declare-function posframe-delete "posframe")
 
@@ -119,14 +122,15 @@ Spanning windows appear in all cells they occupy."
         (push (nreverse row) grid)))
     (nreverse grid)))
 
-(defun spatial-window--cell-percentages (&optional frame)
+(defun spatial-window--cell-percentages (&optional frame geom)
   "Return (col-pcts . row-pcts) for grid cells in FRAME.
 COL-PCTS is a list of column width percentages.
-ROW-PCTS is a list of row height percentages."
+ROW-PCTS is a list of row height percentages.
+If GEOM is provided, use it instead of computing grid geometry."
   (let* ((frame (or frame (selected-frame)))
          (frame-w (frame-pixel-width frame))
          (frame-h (frame-pixel-height frame))
-         (geom (spatial-window--grid-geometry frame))
+         (geom (or geom (spatial-window--grid-geometry frame)))
          (x-coords (nth 0 geom))
          (y-coords (nth 1 geom)))
     (cons
@@ -141,27 +145,12 @@ ROW-PCTS is a list of row height percentages."
 
 (defun spatial-window--window-info (&optional frame)
   "Return 2D grid with window info for FRAME (default: selected frame).
-Each cell is a plist (:window W :h-pct H :v-pct V) where:
-  :window - the window object
-  :h-pct  - horizontal percentage of frame width (0.0-1.0)
-  :v-pct  - vertical percentage of frame height (0.0-1.0)
+Each cell is a plist (:window W) where :window is the window object.
 Spanning windows appear in all cells they occupy."
-  (let* ((frame (or frame (selected-frame)))
-         (frame-w (frame-pixel-width frame))
-         (frame-h (frame-pixel-height frame))
-         (grid (spatial-window--window-grid frame))
-         (info-cache (make-hash-table :test 'eq)))
+  (let ((grid (spatial-window--window-grid frame)))
     (mapcar (lambda (row)
               (mapcar (lambda (win)
-                        (or (gethash win info-cache)
-                            (let* ((edges (window-pixel-edges win))
-                                   (w (- (nth 2 edges) (nth 0 edges)))
-                                   (h (- (nth 3 edges) (nth 1 edges)))
-                                   (info (list :window win
-                                               :h-pct (/ (float w) frame-w)
-                                               :v-pct (/ (float h) frame-h))))
-                              (puthash win info info-cache)
-                              info)))
+                        (list :window win))
                       row))
             grid)))
 
@@ -170,61 +159,67 @@ Spanning windows appear in all cells they occupy."
 Returns alist of (window . (list of keys)).
 When a column has exactly 2 windows and the keyboard has 3 rows, the
 middle row is skipped for that column to improve the spatial mapping."
-  (let* ((info-grid (spatial-window--window-info frame))
-         (grid-rows (length info-grid))
-         (grid-cols (length (car info-grid)))
-         (kbd-layout spatial-window-keyboard-layout)
-         (kbd-rows (length kbd-layout))
-         (kbd-cols (length (car kbd-layout)))
-         ;; Count distinct windows per grid column (for row skipping)
-         (windows-per-col (spatial-window--count-distinct-per-column info-grid))
-         ;; Get actual cell percentages (not window percentages)
-         (cell-pcts (spatial-window--cell-percentages frame))
-         ;; Build column boundaries based on cell widths
-         (col-boundaries (spatial-window--compute-boundaries (car cell-pcts) kbd-cols))
-         ;; Build row boundaries based on cell heights
-         (row-boundaries (spatial-window--compute-boundaries (cdr cell-pcts) kbd-rows))
-         (result (make-hash-table :test 'eq)))
-    ;; Check if we have too many windows for the keyboard layout
-    (if (not (and col-boundaries row-boundaries))
-        (progn
-          (message "Too many %s: %s"
-                   (mapconcat #'identity
-                              (delq nil (list (unless col-boundaries "cols")
-                                              (unless row-boundaries "rows")))
-                              " and ")
-                   (mapconcat #'identity
-                              (delq nil
-                                    (list (unless col-boundaries
-                                            (format "%d found of %d max" grid-cols kbd-cols))
-                                          (unless row-boundaries
-                                            (format "%d found of %d max" grid-rows kbd-rows))))
-                              "; "))
-          nil)
-      ;; Assign keys to windows
-      (cl-loop for kbd-row from 0 below kbd-rows
-               do (cl-loop for kbd-col from 0 below kbd-cols
-                           for grid-col = (spatial-window--boundary-lookup kbd-col col-boundaries)
-                           for grid-row = (spatial-window--boundary-lookup kbd-row row-boundaries)
-                           for distinct-in-col = (nth grid-col windows-per-col)
-                           ;; Skip middle row if this column has exactly 2 windows
-                           unless (and (= kbd-row 1) (= kbd-rows 3) (= distinct-in-col 2))
-                           do (let* ((key (nth kbd-col (nth kbd-row kbd-layout)))
-                                     (info (nth grid-col (nth grid-row info-grid)))
-                                     (win (plist-get info :window)))
-                                (push key (gethash win result)))))
-      ;; Convert hash to alist, reverse key lists to preserve order
-      (let ((alist nil))
-        (maphash (lambda (win keys)
-                   (push (cons win (nreverse keys)) alist))
-                 result)
-        alist))))
+  (let ((kbd-layout spatial-window-keyboard-layout))
+    ;; Validate keyboard layout: all rows must have same length
+    (unless (apply #'= (mapcar #'length kbd-layout))
+      (message "Invalid keyboard layout: rows have different lengths")
+      nil)
+    (when (apply #'= (mapcar #'length kbd-layout))
+      (let* ((geom (spatial-window--grid-geometry frame))
+             (info-grid (spatial-window--window-info frame))
+             (grid-rows (length info-grid))
+             (grid-cols (length (car info-grid)))
+             (kbd-rows (length kbd-layout))
+             (kbd-cols (length (car kbd-layout)))
+             ;; Count distinct windows per grid column (for row skipping)
+             (windows-per-col (spatial-window--count-distinct-per-column info-grid))
+             ;; Get actual cell percentages (not window percentages)
+             (cell-pcts (spatial-window--cell-percentages frame geom))
+             ;; Build column boundaries based on cell widths
+             (col-boundaries (spatial-window--compute-boundaries (car cell-pcts) kbd-cols))
+             ;; Build row boundaries based on cell heights
+             (row-boundaries (spatial-window--compute-boundaries (cdr cell-pcts) kbd-rows))
+             (result (make-hash-table :test 'eq)))
+        ;; Check if we have too many windows for the keyboard layout
+        (if (not (and col-boundaries row-boundaries))
+            (progn
+              (message "Too many %s: %s"
+                       (mapconcat #'identity
+                                  (delq nil (list (unless col-boundaries "cols")
+                                                  (unless row-boundaries "rows")))
+                                  " and ")
+                       (mapconcat #'identity
+                                  (delq nil
+                                        (list (unless col-boundaries
+                                                (format "%d found of %d max" grid-cols kbd-cols))
+                                              (unless row-boundaries
+                                                (format "%d found of %d max" grid-rows kbd-rows))))
+                                  "; "))
+              nil)
+          ;; Assign keys to windows
+          (cl-loop for kbd-row from 0 below kbd-rows
+                   do (cl-loop for kbd-col from 0 below kbd-cols
+                               for grid-col = (spatial-window--boundary-lookup kbd-col col-boundaries)
+                               for grid-row = (spatial-window--boundary-lookup kbd-row row-boundaries)
+                               for distinct-in-col = (nth grid-col windows-per-col)
+                               ;; Skip middle row if this column has exactly 2 windows
+                               unless (and (= kbd-row (/ kbd-rows 2)) (= distinct-in-col 2))
+                               do (let* ((key (nth kbd-col (nth kbd-row kbd-layout)))
+                                         (info (nth grid-col (nth grid-row info-grid)))
+                                         (win (plist-get info :window)))
+                                    (push key (gethash win result)))))
+          ;; Convert hash to alist, reverse key lists to preserve order
+          (let ((alist nil))
+            (maphash (lambda (win keys)
+                       (push (cons win (nreverse keys)) alist))
+                     result)
+            alist))))))
 
 (defun spatial-window--count-distinct-per-column (grid)
   "Count distinct windows in each column of GRID."
   (let ((cols (length (car grid))))
     (cl-loop for col below cols
-             collect (length (delete-dups
+             collect (length (seq-uniq
                               (mapcar (lambda (row)
                                         (plist-get (nth col row) :window))
                                       grid))))))

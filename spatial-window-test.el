@@ -54,7 +54,7 @@
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys))
              (right-keys (cdr (assq win-right result)))
              (top-left-keys (cdr (assq win-top-left result)))
@@ -81,7 +81,7 @@
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys))
              (keys (cdr (assq win result))))
         ;; Single window should get all 30 keys
@@ -97,7 +97,7 @@
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys))
              (left-keys (cdr (assq win-left result)))
              (right-keys (cdr (assq win-right result))))
@@ -131,7 +131,7 @@
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys))
              (left-keys (cdr (assq win-left result)))
              (mid-top-keys (cdr (assq win-mid-top result)))
@@ -163,7 +163,7 @@
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys))
              (main-keys (cdr (assq win-main result)))
              (top-keys (cdr (assq win-sidebar-top result)))
@@ -183,7 +183,7 @@
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys)))
         ;; Each window gets exactly 1 row = 10 keys
         (should (= (length (cdr (assq win1 result))) 10))
@@ -200,7 +200,7 @@
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys)))
         ;; Each window gets exactly 1 column = 3 keys (3 rows)
         (dolist (w wins)
@@ -242,7 +242,7 @@ All 7 distinct windows must get at least 1 key."
     (cl-letf (((symbol-function 'spatial-window--window-info)
                (lambda (&optional _frame) mock-grid))
               ((symbol-function 'spatial-window--cell-percentages)
-               (lambda (&optional _frame) mock-cell-pcts)))
+               (lambda (&optional _frame _geom) mock-cell-pcts)))
       (let* ((result (spatial-window--assign-keys)))
         ;; ALL 7 windows MUST have at least 1 key
         (should (>= (length (cdr (assq win-magit result))) 1))
@@ -287,6 +287,69 @@ All 7 distinct windows must get at least 1 key."
          (grid (spatial-window--format-key-grid all-keys)))
     ;; First row should show all keys
     (should (string-match-p "^q w e r t y u i o p$" (car (split-string grid "\n"))))))
+
+(ert-deftest spatial-window-test-compute-boundaries-too-many-cells ()
+  "Returns nil when more cells than keys."
+  (should (null (spatial-window--compute-boundaries '(0.25 0.25 0.25 0.25) 3))))
+
+(ert-deftest spatial-window-test-select-by-key ()
+  "Selects window matching pressed key from assignments."
+  (let* ((win1 (selected-window))
+         (spatial-window--current-assignments
+          `((,win1 . ("q" "w" "e")))))
+    ;; Mock this-command-keys to return "w"
+    (cl-letf (((symbol-function 'this-command-keys)
+               (lambda () "w"))
+              ((symbol-function 'select-window)
+               (lambda (win) win)))
+      ;; Should find win1 since "w" is in its key list
+      (should (eq (spatial-window--select-by-key) win1)))))
+
+(ert-deftest spatial-window-test-make-selection-keymap ()
+  "Keymap contains all layout keys and C-g."
+  (let ((map (spatial-window--make-selection-keymap)))
+    (should (keymapp map))
+    ;; Check a few keys from different rows
+    (should (lookup-key map "q"))
+    (should (lookup-key map "a"))
+    (should (lookup-key map "z"))
+    (should (lookup-key map (kbd "C-g")))))
+
+(ert-deftest spatial-window-test-invalid-keyboard-layout ()
+  "Returns nil and displays message when keyboard layout rows have different lengths."
+  (let ((spatial-window-keyboard-layout '(("q" "w" "e")
+                                           ("a" "s")))  ; 3 vs 2 keys
+        (messages nil))
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args) (push (apply #'format fmt args) messages))))
+      (let ((result (spatial-window--assign-keys)))
+        ;; Should return nil
+        (should (null result))
+        ;; Should have displayed a message about invalid layout
+        (should (cl-some (lambda (msg) (string-match-p "Invalid keyboard layout" msg)) messages))))))
+
+(ert-deftest spatial-window-test-too-many-windows-message ()
+  "Displays appropriate message when too many windows."
+  (let* ((wins (cl-loop for i below 4 collect (intern (format "win%d" i))))
+         ;; Grid with 4 rows (more than keyboard's 3)
+         (mock-grid (mapcar (lambda (w)
+                              `((:window ,w :h-pct 1.0 :v-pct 0.25)))
+                            wins))
+         (mock-cell-pcts '((1.0) . (0.25 0.25 0.25 0.25)))
+         (messages nil))
+    (cl-letf (((symbol-function 'spatial-window--window-info)
+               (lambda (&optional _frame) mock-grid))
+              ((symbol-function 'spatial-window--cell-percentages)
+               (lambda (&optional _frame _geom) mock-cell-pcts))
+              ((symbol-function 'message)
+               (lambda (fmt &rest args) (push (apply #'format fmt args) messages))))
+      (let ((result (spatial-window--assign-keys)))
+        ;; Should return nil
+        (should (null result))
+        ;; Should have displayed a message mentioning rows
+        (should (cl-some (lambda (msg) (string-match-p "rows" msg)) messages))
+        ;; Message should mention "4 found of 3 max"
+        (should (cl-some (lambda (msg) (string-match-p "4 found of 3 max" msg)) messages))))))
 
 (provide 'spatial-window-test)
 
