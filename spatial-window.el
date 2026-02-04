@@ -5,7 +5,7 @@
 ;; Author: Le Wang
 ;; URL: https://github.com/lewang/spatial-window
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "27.1") (posframe "1.0.0"))
 ;; Keywords: convenience, windows
 
 ;; This file is not part of GNU Emacs.
@@ -40,6 +40,9 @@
 
 ;;; Code:
 
+(declare-function posframe-show "posframe")
+(declare-function posframe-delete "posframe")
+
 (defgroup spatial-window nil
   "Jump to windows using keyboard spatial mapping."
   :group 'windows
@@ -59,11 +62,8 @@ This represents the spatial arrangement of keys on your keyboard."
   "Face for spatial-window key overlay."
   :group 'spatial-window)
 
-(defvar spatial-window--overlays nil
-  "List of active overlays during window selection.")
-
-(defvar spatial-window--saved-header-lines nil
-  "Alist of (window . (buffer . original-header-line)) for restoration.")
+(defvar spatial-window--posframe-buffers nil
+  "List of posframe buffer names for cleanup.")
 
 (defun spatial-window--frame-windows ()
   "Return list of windows in current frame, excluding minibuffer."
@@ -333,53 +333,34 @@ Returns a string showing which keys are assigned, displayed in keyboard layout."
      spatial-window-keyboard-layout
      "\n")))
 
-(defun spatial-window--format-key-grid-single-line (keys)
-  "Format KEYS as a single-line keyboard grid for header-line display."
-  (let ((key-set (make-hash-table :test 'equal)))
-    (dolist (k keys)
-      (puthash k t key-set))
-    (mapconcat
-     (lambda (row)
-       (mapconcat
-        (lambda (key)
-          (if (gethash key key-set) key "."))
-        row " "))
-     spatial-window-keyboard-layout
-     "  |  ")))
-
 (defun spatial-window--show-overlays ()
-  "Display key hints in header-line of all windows.
+  "Display key hints as posframes in all windows.
 Returns the key assignments alist for use in selection."
-  (setq spatial-window--saved-header-lines nil)
+  (require 'posframe)
+  (setq spatial-window--posframe-buffers nil)
   (let ((assignments (spatial-window--assign-keys)))
     (dolist (pair assignments)
       (let* ((window (car pair))
              (keys (cdr pair))
-             (grid-str (spatial-window--format-key-grid-single-line keys))
-             (buf (window-buffer window)))
-        ;; Save original header-line-format
-        (push (cons window (cons buf (buffer-local-value 'header-line-format buf)))
-              spatial-window--saved-header-lines)
-        ;; Set new header-line for this buffer
-        (with-current-buffer buf
-          (setq-local header-line-format
-                      (propertize (concat " " grid-str)
-                                  'face 'spatial-window-overlay-face)))))
-    (force-mode-line-update t)
+             (grid-str (spatial-window--format-key-grid keys))
+             (buf-name (format " *spatial-window-%s*" (window-parameter window 'window-id)))
+             (edges (window-pixel-edges window))
+             (x (+ (nth 0 edges) 10))
+             (y (+ (nth 1 edges) 10)))
+        (push buf-name spatial-window--posframe-buffers)
+        (posframe-show buf-name
+                       :string grid-str
+                       :position (cons x y)
+                       :foreground-color (face-foreground 'spatial-window-overlay-face nil t)
+                       :background-color (face-background 'spatial-window-overlay-face nil t)
+                       :internal-border-width 4)))
     assignments))
 
 (defun spatial-window--remove-overlays ()
-  "Restore original header-lines in all windows."
-  ;; Restore saved header-lines
-  (dolist (saved spatial-window--saved-header-lines)
-    (let ((buf (cadr saved))
-          (orig-header (cddr saved)))
-      (when (buffer-live-p buf)
-        (with-current-buffer buf
-          (setq-local header-line-format orig-header)))))
-  (setq spatial-window--saved-header-lines nil)
-  (setq spatial-window--overlays nil)
-  (force-mode-line-update t))
+  "Hide and cleanup all posframes."
+  (dolist (buf-name spatial-window--posframe-buffers)
+    (posframe-delete buf-name))
+  (setq spatial-window--posframe-buffers nil))
 
 (defun spatial-window--select-by-key ()
   "Select window corresponding to the key that invoked this command."
