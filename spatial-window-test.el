@@ -1,0 +1,148 @@
+;;; spatial-window-test.el --- Tests for spatial-window -*- lexical-binding: t; -*-
+
+;;; Commentary:
+;; ERT tests for spatial-window.el
+
+;;; Code:
+
+(require 'ert)
+(require 'spatial-window)
+
+;;; Helper function tests
+
+(ert-deftest spatial-window-test-select-indices-2-way-split ()
+  "For 2 grid divisions with 3 keyboard rows, skip middle."
+  (should (equal (spatial-window--select-indices 3 2) '(0 2))))
+
+(ert-deftest spatial-window-test-select-indices-1-way ()
+  "For 1 grid division, use all keyboard indices."
+  (should (equal (spatial-window--select-indices 3 1) '(0 1 2))))
+
+(ert-deftest spatial-window-test-select-indices-3-way ()
+  "For 3 grid divisions, use all keyboard indices."
+  (should (equal (spatial-window--select-indices 3 3) '(0 1 2))))
+
+(ert-deftest spatial-window-test-compute-boundaries-equal-split ()
+  "Equal 50/50 split divides keys evenly."
+  (let ((bounds (spatial-window--compute-boundaries '(0.5 0.5) 10)))
+    (should (equal bounds '((0 . 4) (5 . 9))))))
+
+(ert-deftest spatial-window-test-compute-boundaries-unequal-split ()
+  "30/70 split gives proportional keys."
+  (let ((bounds (spatial-window--compute-boundaries '(0.3 0.7) 10)))
+    (should (equal bounds '((0 . 2) (3 . 9))))))
+
+(ert-deftest spatial-window-test-boundary-lookup ()
+  "Key index maps to correct grid cell."
+  (let ((bounds '((0 . 4) (5 . 9))))
+    (should (= (spatial-window--boundary-lookup 0 bounds) 0))
+    (should (= (spatial-window--boundary-lookup 4 bounds) 0))
+    (should (= (spatial-window--boundary-lookup 5 bounds) 1))
+    (should (= (spatial-window--boundary-lookup 9 bounds) 1))))
+
+(ert-deftest spatial-window-test-is-middle-col ()
+  "Middle columns detected correctly for 10-column keyboard."
+  (should-not (spatial-window--is-middle-col 0 10))
+  (should-not (spatial-window--is-middle-col 2 10))
+  (should (spatial-window--is-middle-col 3 10))
+  (should (spatial-window--is-middle-col 5 10))
+  (should (spatial-window--is-middle-col 6 10))
+  (should-not (spatial-window--is-middle-col 7 10))
+  (should-not (spatial-window--is-middle-col 9 10)))
+
+;;; Integration tests with mock window info
+
+(ert-deftest spatial-window-test-count-distinct-per-column ()
+  "Count distinct windows in each column."
+  (let* ((win1 'win1) (win2 'win2) (win3 'win3)
+         (grid `(((:window ,win1) (:window ,win2))
+                 ((:window ,win3) (:window ,win2)))))
+    (should (equal (spatial-window--count-distinct-per-column grid) '(2 1)))))
+
+(ert-deftest spatial-window-test-count-distinct-per-row ()
+  "Count distinct windows in each row."
+  (let* ((win1 'win1) (win2 'win2) (win3 'win3)
+         (grid `(((:window ,win1) (:window ,win2))
+                 ((:window ,win3) (:window ,win2)))))
+    (should (equal (spatial-window--count-distinct-per-row grid) '(2 2)))))
+
+(ert-deftest spatial-window-test-assign-keys-2-left-1-right ()
+  "2 windows stacked left, 1 spanning right: right gets all 3 rows."
+  (let* ((win-top-left 'win-top-left)
+         (win-bottom-left 'win-bottom-left)
+         (win-right 'win-right)
+         ;; Mock grid: 2 rows, 2 cols
+         ;; Left column: 2 windows (50% height each)
+         ;; Right column: 1 window (100% height)
+         (mock-grid `(((:window ,win-top-left :h-pct 0.5 :v-pct 0.5)
+                       (:window ,win-right :h-pct 0.5 :v-pct 1.0))
+                      ((:window ,win-bottom-left :h-pct 0.5 :v-pct 0.5)
+                       (:window ,win-right :h-pct 0.5 :v-pct 1.0)))))
+    (cl-letf (((symbol-function 'spatial-window--window-info)
+               (lambda (&optional _frame) mock-grid)))
+      (let* ((result (spatial-window--assign-keys))
+             (right-keys (cdr (assq win-right result)))
+             (top-left-keys (cdr (assq win-top-left result)))
+             (bottom-left-keys (cdr (assq win-bottom-left result))))
+        ;; Right window should have keys from all 3 rows (15 keys)
+        (should (= (length right-keys) 15))
+        ;; Right window should include middle row keys
+        (should (member "h" right-keys))
+        (should (member "j" right-keys))
+        ;; Left windows should NOT have middle row keys
+        (should-not (member "a" top-left-keys))
+        (should-not (member "s" top-left-keys))
+        (should-not (member "a" bottom-left-keys))
+        ;; Top-left gets top row left half
+        (should (member "q" top-left-keys))
+        (should (member "w" top-left-keys))
+        ;; Bottom-left gets bottom row left half
+        (should (member "z" bottom-left-keys))
+        (should (member "x" bottom-left-keys))))))
+
+(ert-deftest spatial-window-test-assign-keys-single-window ()
+  "Single window gets all keys."
+  (let* ((win 'win)
+         (mock-grid `(((:window ,win :h-pct 1.0 :v-pct 1.0)))))
+    (cl-letf (((symbol-function 'spatial-window--window-info)
+               (lambda (&optional _frame) mock-grid)))
+      (let* ((result (spatial-window--assign-keys))
+             (keys (cdr (assq win result))))
+        ;; Single window should get all 30 keys
+        (should (= (length keys) 30))))))
+
+(ert-deftest spatial-window-test-assign-keys-2-columns ()
+  "2 side-by-side windows: each gets half columns, all rows, middle cols skipped."
+  (let* ((win-left 'win-left)
+         (win-right 'win-right)
+         (mock-grid `(((:window ,win-left :h-pct 0.5 :v-pct 1.0)
+                       (:window ,win-right :h-pct 0.5 :v-pct 1.0)))))
+    (cl-letf (((symbol-function 'spatial-window--window-info)
+               (lambda (&optional _frame) mock-grid)))
+      (let* ((result (spatial-window--assign-keys))
+             (left-keys (cdr (assq win-left result)))
+             (right-keys (cdr (assq win-right result)))
+             (all-keys (append left-keys right-keys)))
+        ;; Each window should have keys from all 3 rows
+        (should (member "q" left-keys))  ; top row
+        (should (member "a" left-keys))  ; middle row
+        (should (member "z" left-keys))  ; bottom row
+        (should (member "p" right-keys))
+        (should (member ";" right-keys))
+        (should (member "/" right-keys))
+        ;; Middle columns should be skipped (r, t, y, u on row 0)
+        (should-not (member "r" all-keys))
+        (should-not (member "t" all-keys))
+        (should-not (member "y" all-keys))
+        (should-not (member "u" all-keys))
+        ;; Outer columns should be present
+        (should (member "q" all-keys))
+        (should (member "w" all-keys))
+        (should (member "e" all-keys))
+        (should (member "i" all-keys))
+        (should (member "o" all-keys))
+        (should (member "p" all-keys))))))
+
+(provide 'spatial-window-test)
+
+;;; spatial-window-test.el ends here

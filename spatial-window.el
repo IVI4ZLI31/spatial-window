@@ -166,6 +166,111 @@ Spanning windows appear in all cells they occupy."
                       row))
             grid)))
 
+(defun spatial-window--assign-keys (&optional frame)
+  "Assign keyboard keys to windows based on their layout.
+Returns alist of (window . (list of keys)).
+For 2-way splits, the middle keyboard row/column is skipped,
+but only for columns/rows that actually have 2 distinct windows."
+  (let* ((info-grid (spatial-window--window-info frame))
+         (grid-rows (length info-grid))
+         (grid-cols (length (car info-grid)))
+         (kbd-layout spatial-window-keyboard-layout)
+         (kbd-rows (length kbd-layout))
+         (kbd-cols (length (car kbd-layout)))
+         ;; Count distinct windows per grid column (for row skipping)
+         (windows-per-col (spatial-window--count-distinct-per-column info-grid))
+         ;; Skip middle cols only if clean 2-col split (no vertical subdivisions)
+         (skip-middle-cols (and (= grid-cols 2)
+                                (= (apply #'max windows-per-col) 1)))
+         ;; Build column boundaries based on h-pct of first row
+         (col-boundaries (spatial-window--compute-boundaries
+                          (mapcar (lambda (info) (plist-get info :h-pct))
+                                  (car info-grid))
+                          kbd-cols))
+         ;; Build row boundaries based on v-pct of first column
+         (row-boundaries (spatial-window--compute-boundaries
+                          (mapcar (lambda (row) (plist-get (car row) :v-pct))
+                                  info-grid)
+                          kbd-rows))
+         (result (make-hash-table :test 'eq)))
+    ;; Assign keys to windows
+    (cl-loop for kbd-row from 0 below kbd-rows
+             do (cl-loop for kbd-col from 0 below kbd-cols
+                         for grid-col = (spatial-window--boundary-lookup kbd-col col-boundaries)
+                         for grid-row = (spatial-window--boundary-lookup kbd-row row-boundaries)
+                         for distinct-in-col = (nth grid-col windows-per-col)
+                         ;; Skip middle row if this column has exactly 2 windows
+                         unless (and (= kbd-row 1) (= kbd-rows 3) (= distinct-in-col 2))
+                         ;; Skip middle cols only for clean 2-col split
+                         unless (and skip-middle-cols
+                                     (spatial-window--is-middle-col kbd-col kbd-cols))
+                         do (let* ((key (nth kbd-col (nth kbd-row kbd-layout)))
+                                   (info (nth grid-col (nth grid-row info-grid)))
+                                   (win (plist-get info :window)))
+                              (push key (gethash win result)))))
+    ;; Convert hash to alist, reverse key lists to preserve order
+    (let ((alist nil))
+      (maphash (lambda (win keys)
+                 (push (cons win (nreverse keys)) alist))
+               result)
+      alist)))
+
+(defun spatial-window--count-distinct-per-column (grid)
+  "Count distinct windows in each column of GRID."
+  (let ((cols (length (car grid))))
+    (cl-loop for col below cols
+             collect (length (delete-dups
+                              (mapcar (lambda (row)
+                                        (plist-get (nth col row) :window))
+                                      grid))))))
+
+(defun spatial-window--count-distinct-per-row (grid)
+  "Count distinct windows in each row of GRID."
+  (mapcar (lambda (row)
+            (length (delete-dups
+                     (mapcar (lambda (info) (plist-get info :window))
+                             row))))
+          grid))
+
+(defun spatial-window--is-middle-col (col total-cols)
+  "Return t if COL is in the middle region for TOTAL-COLS columns."
+  (let ((mid-start (/ total-cols 3))
+        (mid-end (- total-cols (/ total-cols 3))))
+    (and (>= col mid-start) (< col mid-end))))
+
+(defun spatial-window--select-indices (kbd-count grid-count)
+  "Select which keyboard indices to use for GRID-COUNT divisions.
+For 2-way splits, skip middle index."
+  (let ((indices (number-sequence 0 (1- kbd-count))))
+    (if (and (= grid-count 2) (= kbd-count 3))
+        (list 0 2)  ; Skip middle row/col for 2-way split
+      indices)))
+
+(defun spatial-window--compute-boundaries (percentages key-count)
+  "Compute grid cell boundaries based on PERCENTAGES for KEY-COUNT keys.
+Returns list of (start-key . end-key) for each grid cell."
+  (let* ((n (length percentages))
+         (cumulative 0.0)
+         (boundaries nil))
+    (dolist (pct percentages)
+      (let* ((start cumulative)
+             (end (+ cumulative pct))
+             (start-key (floor (* start key-count)))
+             (end-key (1- (ceiling (* end key-count)))))
+        (push (cons start-key (max start-key end-key)) boundaries)
+        (setq cumulative end)))
+    (nreverse boundaries)))
+
+(defun spatial-window--boundary-lookup (key-idx boundaries)
+  "Find which grid cell KEY-IDX falls into based on BOUNDARIES."
+  (let ((result 0))
+    (cl-loop for boundary in boundaries
+             for idx from 0
+             when (and (>= key-idx (car boundary))
+                       (<= key-idx (cdr boundary)))
+             do (setq result idx))
+    result))
+
 (defun spatial-window--find-window-for-key (key)
   "Find the window that best matches KEY's position on the keyboard."
   (let* ((key-pos (spatial-window--key-position key))
