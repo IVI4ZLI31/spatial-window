@@ -206,6 +206,53 @@
         (dolist (w wins)
           (should (= (length (cdr (assq w result))) 3)))))))
 
+(ert-deftest spatial-window-test-complex-spanning-layout ()
+  "Complex layout: 3 rows × 5 cols with multiple spanning windows.
+Layout:
+  Row 0: magit spans cols 0-3, claude-code in col 4
+  Row 1: 4 small windows in cols 0-3, claude-code spans col 4
+  Row 2: backtrace col 0, 3 windows span rows 1-2 in cols 1-3, claude-code col 4
+All 7 distinct windows must get at least 1 key."
+  (let* ((win-magit 'win-magit)
+         (win-claude 'win-claude)
+         (win-sw1 'win-sw1)      ; col 0, row 1 only
+         (win-sw2 'win-sw2)      ; col 1, rows 1-2
+         (win-sw3 'win-sw3)      ; col 2, rows 1-2
+         (win-sw4 'win-sw4)      ; col 3, rows 1-2
+         (win-backtrace 'win-backtrace)  ; col 0, row 2 only
+         ;; 3 rows × 5 cols grid
+         (mock-grid
+          `(((:window ,win-magit :h-pct 0.509 :v-pct 0.483)
+             (:window ,win-magit :h-pct 0.509 :v-pct 0.483)
+             (:window ,win-magit :h-pct 0.509 :v-pct 0.483)
+             (:window ,win-magit :h-pct 0.509 :v-pct 0.483)
+             (:window ,win-claude :h-pct 0.489 :v-pct 0.981))
+            ((:window ,win-sw1 :h-pct 0.066 :v-pct 0.242)
+             (:window ,win-sw2 :h-pct 0.063 :v-pct 0.497)
+             (:window ,win-sw3 :h-pct 0.126 :v-pct 0.497)
+             (:window ,win-sw4 :h-pct 0.253 :v-pct 0.497)
+             (:window ,win-claude :h-pct 0.489 :v-pct 0.981))
+            ((:window ,win-backtrace :h-pct 0.066 :v-pct 0.256)
+             (:window ,win-sw2 :h-pct 0.063 :v-pct 0.497)
+             (:window ,win-sw3 :h-pct 0.126 :v-pct 0.497)
+             (:window ,win-sw4 :h-pct 0.253 :v-pct 0.497)
+             (:window ,win-claude :h-pct 0.489 :v-pct 0.981))))
+         ;; Actual cell sizes from window boundaries
+         (mock-cell-pcts '((0.066 0.063 0.126 0.253 0.489) . (0.483 0.242 0.256))))
+    (cl-letf (((symbol-function 'spatial-window--window-info)
+               (lambda (&optional _frame) mock-grid))
+              ((symbol-function 'spatial-window--cell-percentages)
+               (lambda (&optional _frame) mock-cell-pcts)))
+      (let* ((result (spatial-window--assign-keys)))
+        ;; ALL 7 windows MUST have at least 1 key
+        (should (>= (length (cdr (assq win-magit result))) 1))
+        (should (>= (length (cdr (assq win-claude result))) 1))
+        (should (>= (length (cdr (assq win-sw1 result))) 1))
+        (should (>= (length (cdr (assq win-sw2 result))) 1))
+        (should (>= (length (cdr (assq win-sw3 result))) 1))
+        (should (>= (length (cdr (assq win-sw4 result))) 1))
+        (should (>= (length (cdr (assq win-backtrace result))) 1))))))
+
 (ert-deftest spatial-window-test-compute-boundaries-minimum-1-key ()
   "Each cell gets at least 1 key even with tiny percentages."
   ;; 95% / 5% split with 10 keys
