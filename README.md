@@ -6,6 +6,16 @@ Jump to Emacs windows by pressing keys that match their spatial position on your
 
 Requires Emacs 27.1+ and [posframe](https://github.com/tumashu/posframe).
 
+### Elpaca
+
+```elisp
+(use-package spatial-window
+  :ensure (:host github :repo "lewang/spatial-window")
+  :bind ("M-o" . spatial-window-select))
+```
+
+### Manual
+
 ```elisp
 (require 'spatial-window)
 (global-set-key (kbd "M-o") #'spatial-window-select)
