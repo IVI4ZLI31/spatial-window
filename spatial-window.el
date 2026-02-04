@@ -178,8 +178,7 @@ Spanning windows appear in all cells they occupy."
 (defun spatial-window--assign-keys (&optional frame)
   "Assign keyboard keys to windows based on their layout.
 Returns alist of (window . (list of keys)).
-For 2-way splits, the middle keyboard row/column is skipped,
-but only for columns/rows that actually have 2 distinct windows."
+For 2-way vertical splits, the middle keyboard row is skipped."
   (let* ((info-grid (spatial-window--window-info frame))
          (grid-rows (length info-grid))
          (grid-cols (length (car info-grid)))
@@ -188,9 +187,6 @@ but only for columns/rows that actually have 2 distinct windows."
          (kbd-cols (length (car kbd-layout)))
          ;; Count distinct windows per grid column (for row skipping)
          (windows-per-col (spatial-window--count-distinct-per-column info-grid))
-         ;; Skip middle cols only if clean 2-col split (no vertical subdivisions)
-         (skip-middle-cols (and (= grid-cols 2)
-                                (= (apply #'max windows-per-col) 1)))
          ;; Find column with most distinct windows (for accurate row v-pct)
          (best-col (cl-position (apply #'max windows-per-col) windows-per-col))
          ;; Build column boundaries based on h-pct of first row
@@ -212,9 +208,6 @@ but only for columns/rows that actually have 2 distinct windows."
                          for distinct-in-col = (nth grid-col windows-per-col)
                          ;; Skip middle row if this column has exactly 2 windows
                          unless (and (= kbd-row 1) (= kbd-rows 3) (= distinct-in-col 2))
-                         ;; Skip middle cols only for clean 2-col split
-                         unless (and skip-middle-cols
-                                     (spatial-window--is-middle-col kbd-col kbd-cols))
                          do (let* ((key (nth kbd-col (nth kbd-row kbd-layout)))
                                    (info (nth grid-col (nth grid-row info-grid)))
                                    (win (plist-get info :window)))
@@ -242,12 +235,6 @@ but only for columns/rows that actually have 2 distinct windows."
                      (mapcar (lambda (info) (plist-get info :window))
                              row))))
           grid))
-
-(defun spatial-window--is-middle-col (col total-cols)
-  "Return t if COL is in the middle region for TOTAL-COLS columns."
-  (let ((mid-start (/ total-cols 3))
-        (mid-end (- total-cols (/ total-cols 3))))
-    (and (>= col mid-start) (< col mid-end))))
 
 (defun spatial-window--select-indices (kbd-count grid-count)
   "Select which keyboard indices to use for GRID-COUNT divisions.

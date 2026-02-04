@@ -40,16 +40,6 @@
     (should (= (spatial-window--boundary-lookup 5 bounds) 1))
     (should (= (spatial-window--boundary-lookup 9 bounds) 1))))
 
-(ert-deftest spatial-window-test-is-middle-col ()
-  "Middle columns detected correctly for 10-column keyboard."
-  (should-not (spatial-window--is-middle-col 0 10))
-  (should-not (spatial-window--is-middle-col 2 10))
-  (should (spatial-window--is-middle-col 3 10))
-  (should (spatial-window--is-middle-col 5 10))
-  (should (spatial-window--is-middle-col 6 10))
-  (should-not (spatial-window--is-middle-col 7 10))
-  (should-not (spatial-window--is-middle-col 9 10)))
-
 ;;; Integration tests with mock window info
 
 (ert-deftest spatial-window-test-count-distinct-per-column ()
@@ -110,7 +100,7 @@
         (should (= (length keys) 30))))))
 
 (ert-deftest spatial-window-test-assign-keys-2-columns ()
-  "2 left-right windows: each gets half columns, all rows, middle cols skipped."
+  "2 left-right windows: each gets half columns, all rows."
   (let* ((win-left 'win-left)
          (win-right 'win-right)
          (mock-grid `(((:window ,win-left :h-pct 0.5 :v-pct 1.0)
@@ -119,15 +109,15 @@
                (lambda (&optional _frame) mock-grid)))
       (let* ((result (spatial-window--assign-keys))
              (left-keys (cdr (assq win-left result)))
-             (right-keys (cdr (assq win-right result)))
-             (all-keys (append left-keys right-keys))
-             (middle-cols '("r" "t" "y" "u" "f" "g" "h" "j" "v" "b" "n" "m")))
-        ;; Left window: outer left columns, all 3 rows
-        (should (seq-set-equal-p left-keys '("q" "w" "e" "a" "s" "d" "z" "x" "c")))
-        ;; Right window: outer right columns, all 3 rows
-        (should (seq-set-equal-p right-keys '("i" "o" "p" "k" "l" ";" "," "." "/")))
-        ;; Middle columns skipped entirely
-        (should (null (seq-intersection all-keys middle-cols)))))))
+             (right-keys (cdr (assq win-right result))))
+        ;; Left window: left half columns (0-4), all 3 rows = 15 keys
+        (should (seq-set-equal-p left-keys '("q" "w" "e" "r" "t"
+                                             "a" "s" "d" "f" "g"
+                                             "z" "x" "c" "v" "b")))
+        ;; Right window: right half columns (5-9), all 3 rows = 15 keys
+        (should (seq-set-equal-p right-keys '("y" "u" "i" "o" "p"
+                                              "h" "j" "k" "l" ";"
+                                              "n" "m" "," "." "/")))))))
 
 (ert-deftest spatial-window-test-assign-keys-3-columns ()
   "3 columns: left/right span full height, middle has top-bottom split."
