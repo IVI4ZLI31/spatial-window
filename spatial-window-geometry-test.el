@@ -369,6 +369,55 @@ Bidirectional scoring handles overlapping coverage areas."
     ;; Bot-right (67% width, bottom rows) gets remaining bottom-right
     (should (seq-set-equal-p bot-right-keys '("v" "b" "n" "m" "," "." "/")))))
 
+;;; ┌───────────────────────┬────────────────┐
+;;; │     top-left (59%)    │  top-right 41% │
+;;; ├──────────┬────────────┴────────────────┤
+;;; │ bot-left │      bot-right (68%)        │
+;;; │   (32%)  │                             │
+;;; └──────────┴─────────────────────────────┘
+;;;
+;;; BUGS documented in this test:
+;;; 1. "h" key is unassigned (falls between windows)
+;;; 2. Top-left gets non-rectangular keys: q w e r t y + f g
+;;;    (6 from row 0, 2 from row 1 - not a rectangle)
+;;; 3. Bot-left and bot-right have identical heights (0.5 to 0.985)
+;;;    but bot-left gets 2 rows (a s d + z x c) while bot-right
+;;;    gets only 1 row (v b n m , . /) - inconsistent row assignment
+
+(ert-deftest spatial-window-test-misaligned-splits-edge-case ()
+  "4 windows with 59/41 top and 32/68 bottom split.
+Documents multiple bugs:
+- 'h' key unassigned
+- Non-rectangular key block for top-left (qwerty + fg)
+- Same-height windows get different row counts (bot-left: 2, bot-right: 1)"
+  (let* ((win-top-left 'win-top-left)
+         (win-top-right 'win-top-right)
+         (win-bot-left 'win-bot-left)
+         (win-bot-right 'win-bot-right)
+         ;; Top row: 59%/41% split, Bottom row: 32%/68% split
+         (window-bounds
+          `((,win-top-left 0.001 0.594 0.002 0.5)
+            (,win-top-right 0.594 0.999 0.002 0.5)
+            (,win-bot-left 0.001 0.319 0.5 0.985)
+            (,win-bot-right 0.319 0.999 0.5 0.985)))
+         (result (spatial-window--assign-keys nil window-bounds))
+         (top-left-keys (cdr (assq win-top-left result)))
+         (top-right-keys (cdr (assq win-top-right result)))
+         (bot-left-keys (cdr (assq win-bot-left result)))
+         (bot-right-keys (cdr (assq win-bot-right result)))
+         (all-keys (apply #'append (mapcar #'cdr result))))
+    ;; BUG: Top-left gets non-rectangular keys (6 from row 0 + 2 from row 1)
+    (should (seq-set-equal-p top-left-keys '("q" "w" "e" "r" "t" "y" "f" "g")))
+    ;; Top-right gets 8 keys
+    (should (seq-set-equal-p top-right-keys '("u" "i" "o" "p" "j" "k" "l" ";")))
+    ;; BUG: Bot-left gets 2 rows despite same height as bot-right
+    (should (seq-set-equal-p bot-left-keys '("a" "s" "d" "z" "x" "c")))
+    ;; BUG: Bot-right gets only 1 row despite same height as bot-left
+    (should (seq-set-equal-p bot-right-keys '("v" "b" "n" "m" "," "." "/")))
+    ;; BUG: Only 29 keys assigned - "h" is missing
+    (should (= (length all-keys) 29))
+    (should-not (member "h" all-keys))))
+
 (ert-deftest spatial-window-test-invalid-keyboard-layout ()
   "Returns nil and displays message when keyboard layout rows have different lengths."
   (let ((invalid-layout '(("q" "w" "e")
