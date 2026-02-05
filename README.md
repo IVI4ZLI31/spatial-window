@@ -70,6 +70,16 @@ Or define a custom layout:
                           ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
 ```
 
+### Expert Mode
+
+If posframe rendering is slow on your configuration, enable expert mode to hide overlays by default:
+
+```elisp
+(customize-set-variable 'spatial-window-expert-mode t)
+```
+
+In expert mode, press `C-h` during selection to toggle overlay visibility.
+
 ## Alternatives
 
 | Package                                                   | Approach                                                                           |
