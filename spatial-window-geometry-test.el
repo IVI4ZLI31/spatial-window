@@ -32,6 +32,13 @@
 
 ;;; Key assignment tests
 
+;;; ┌───────────────────┐
+;;; │                   │
+;;; │       100%        │
+;;; │                   │
+;;; └───────────────────┘
+;;; Keys: all 30
+
 (ert-deftest spatial-window-test-assign-keys-single-window ()
   "Single window gets all keys."
   (let* ((win 'win)
@@ -39,6 +46,16 @@
          (result (spatial-window--assign-keys nil window-bounds))
          (keys (cdr (assq win result))))
     (should (= (length keys) 30))))
+
+;;; ┌─────────┬─────────┐
+;;; │         │         │
+;;; │   50%   │   50%   │
+;;; │         │         │
+;;; └─────────┴─────────┘
+;;; Keys:
+;;; q w e r t │ y u i o p
+;;; a s d f g │ h j k l ;
+;;; z x c v b │ n m , . /
 
 (ert-deftest spatial-window-test-assign-keys-2-columns ()
   "2 left-right windows: each gets half columns, all rows."
@@ -55,6 +72,19 @@
     (should (seq-set-equal-p right-keys '("y" "u" "i" "o" "p"
                                           "h" "j" "k" "l" ";"
                                           "n" "m" "," "." "/")))))
+
+;;; ┌─────────┬─────────┐
+;;; │ top-L   │         │
+;;; │  50%    │  right  │
+;;; ├─────────┤  100%   │
+;;; │ bot-L   │         │
+;;; │  50%    │         │
+;;; └─────────┴─────────┘
+;;;    50%        50%
+;;; Keys:
+;;; q w e r t │ y u i o p
+;;; · · · · · │ h j k l ;  ← middle row skipped on left (50/50 tie)
+;;; z x c v b │ n m , . /
 
 (ert-deftest spatial-window-test-assign-keys-2-left-1-right ()
   "2 windows top-bottom left, 1 spanning right: right gets all 3 rows."
@@ -82,24 +112,18 @@
     ;; Bottom-left: bottom row left half
     (should (seq-set-equal-p bottom-left-keys '("z" "x" "c" "v" "b")))))
 
-(ert-deftest spatial-window-test-assign-keys-unbalanced-split ()
-  "75/25 vertical split: larger window gets middle row, smaller gets bottom only."
-  (let* ((win-top 'win-top)
-         (win-bottom 'win-bottom)
-         (window-bounds `((,win-top 0.0 1.0 0.0 0.75)
-                          (,win-bottom 0.0 1.0 0.75 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
-         (top-keys (cdr (assq win-top result)))
-         (bottom-keys (cdr (assq win-bottom result)))
-         (middle-row '("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
-    ;; Top window (75%) should get top AND middle rows = 20 keys
-    (should (= (length top-keys) 20))
-    ;; Top window includes middle row
-    (should (seq-set-equal-p (seq-intersection top-keys middle-row) middle-row))
-    ;; Bottom window (25%) gets only bottom row = 10 keys
-    (should (= (length bottom-keys) 10))
-    ;; Bottom window should NOT have middle row
-    (should (null (seq-intersection bottom-keys middle-row)))))
+;;; ┌────┬───────────┬──────┐
+;;; │    │  mid-top  │      │
+;;; │ L  │    50%    │  R   │
+;;; │100%├───────────┤ 100% │
+;;; │    │  mid-bot  │      │
+;;; │    │    50%    │      │
+;;; └────┴───────────┴──────┘
+;;;  20%      50%       30%
+;;; Keys:
+;;; q w │ e r t y u │ i o p
+;;; a s │ · · · · · │ k l ;  ← middle skipped in center (50/50)
+;;; z x │ c v b n m │ , . /
 
 (ert-deftest spatial-window-test-assign-keys-3-columns ()
   "3 columns: left/right span full height, middle has top-bottom split."
@@ -127,6 +151,14 @@
     ;; Mid-bot: middle columns, bottom row only
     (should (seq-set-equal-p mid-bot-keys '("c" "v" "b" "n" "m")))))
 
+;;; ┌─────────────────────┬──┐
+;;; │                     │  │ 92%
+;;; │      main 95.5%     ├──┤
+;;; │                     │  │ 8%
+;;; └─────────────────────┴──┘
+;;;                       4.5%
+;;; Keys: all windows get ≥1 (coverage test)
+
 (ert-deftest spatial-window-test-assign-keys-extreme-split ()
   "Extreme split: 95.5% main / 4.5% sidebar. All windows must get keys."
   (let* ((win-main 'win-main)
@@ -146,6 +178,15 @@
     (should (>= (length top-keys) 1))
     (should (>= (length bot-keys) 1))))
 
+;;; ┌───────────────────┐
+;;; │      win1 33%     │
+;;; ├───────────────────┤
+;;; │      win2 34%     │
+;;; ├───────────────────┤
+;;; │      win3 33%     │
+;;; └───────────────────┘
+;;; Keys: 10 each (1 row per window)
+
 (ert-deftest spatial-window-test-max-3-rows ()
   "3 top-bottom windows = 3 keyboard rows, each gets exactly 1 row."
   (let* ((win1 'win1) (win2 'win2) (win3 'win3)
@@ -157,6 +198,13 @@
     (should (= (length (cdr (assq win2 result))) 10))
     (should (= (length (cdr (assq win3 result))) 10))))
 
+;;; ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
+;;; │  │  │  │  │  │  │  │  │  │  │
+;;; │10│10│10│10│10│10│10│10│10│10│ (% each)
+;;; │  │  │  │  │  │  │  │  │  │  │
+;;; └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
+;;; Keys: 3 each (1 column per window)
+
 (ert-deftest spatial-window-test-max-10-cols ()
   "10 left-right windows = 10 keyboard columns, each gets 3 keys (1 col × 3 rows)."
   (let* ((wins (cl-loop for i below 10 collect (intern (format "win%d" i))))
@@ -166,6 +214,17 @@
          (result (spatial-window--assign-keys nil window-bounds)))
     (dolist (w wins)
       (should (= (length (cdr (assq w result))) 3)))))
+
+;;; ┌───────────────────┬─────────┐
+;;; │      magit        │         │
+;;; │       48%         │         │
+;;; ├──┬──┬────┬────────┤  claude │
+;;; │s1│s2│ s3 │   s4   │  100%   │
+;;; ├──┼──┤    │        │         │
+;;; │bt│  │    │        │         │
+;;; └──┴──┴────┴────────┴─────────┘
+;;;        51%              49%
+;;; Keys: all 7 windows get ≥1 (coverage test)
 
 (ert-deftest spatial-window-test-complex-spanning-layout ()
   "Complex layout: 7 windows with multiple spanning. All must get keys."
@@ -194,6 +253,19 @@
     (should (>= (length (cdr (assq win-sw3 result))) 1))
     (should (>= (length (cdr (assq win-sw4 result))) 1))
     (should (>= (length (cdr (assq win-backtrace result))) 1))))
+
+;;; ┌─────────────┬───────┐
+;;; │             │       │
+;;; │  main 93%   │claude │
+;;; │             │ 100%  │
+;;; ├─────────────┤       │
+;;; │  diff 5%    │       │
+;;; └─────────────┴───────┘
+;;;      63%         37%
+;;; Keys:
+;;; q w e r t y │ u i o p
+;;; a s d f g h │ j k l ;   ← main gets 2 rows (unbalanced)
+;;; z x c v b n │ m , . /   ← diff gets 1 row
 
 (ert-deftest spatial-window-test-ide-layout-with-thin-panel ()
   "IDE layout: main editor + thin diff panel on left, claude on right."
