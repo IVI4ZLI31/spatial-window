@@ -64,8 +64,12 @@ Coordinates are normalized to 0.0-1.0 range relative to frame size."
 ;;; Key assignment
 
 (defconst spatial-window--ownership-threshold 0.75
-  "Minimum overlap fraction for a window to claim a key.
-Keys with no window exceeding this threshold are left unmapped.")
+  "Minimum overlap fraction for a window to unambiguously claim a key.")
+
+(defconst spatial-window--relative-threshold 0.20
+  "Minimum overlap advantage over competitors to claim a key below threshold.
+If a window's overlap exceeds all competitors by this margin, it wins
+even if below `spatial-window--ownership-threshold'.")
 
 (defun spatial-window--cell-overlap (cell-row cell-col kbd-rows kbd-cols
                                                win-x-start win-x-end win-y-start win-y-end)
@@ -106,22 +110,47 @@ Returns 2D vector where each cell contains alist of (window . overlap)."
     overlaps))
 
 (defun spatial-window--build-ownership-grid (kbd-rows kbd-cols overlaps)
-  "Build grid assigning each cell to window with >75% overlap, or nil.
-Returns 2D vector where each cell contains window or nil (unmapped)."
-  (let ((grid (make-vector kbd-rows nil)))
+  "Build grid assigning each cell to a window or nil (unmapped).
+Two-phase assignment:
+  Phase 1: Cells go to windows with >75% overlap (strong ownership)
+  Phase 2: Remaining cells go to windows that lack strong ownership,
+           if they beat competitors by >20% margin
+Returns 2D vector where each cell contains window or nil."
+  (let ((grid (make-vector kbd-rows nil))
+        (has-strong-ownership (make-hash-table :test 'eq)))
+    ;; Phase 1: Assign cells with >75% overlap
     (dotimes (row kbd-rows)
       (aset grid row (make-vector kbd-cols nil))
       (dotimes (col kbd-cols)
-        (let ((cell-overlaps (aref (aref overlaps row) col))
-              (best-window nil)
-              (best-overlap 0.0))
-          ;; Find window with highest overlap above threshold
+        (let ((cell-overlaps (aref (aref overlaps row) col)))
           (dolist (wo cell-overlaps)
-            (when (and (> (cdr wo) spatial-window--ownership-threshold)
-                       (> (cdr wo) best-overlap))
-              (setq best-window (car wo)
-                    best-overlap (cdr wo))))
-          (aset (aref grid row) col best-window))))
+            (when (> (cdr wo) spatial-window--ownership-threshold)
+              ;; Find best window above threshold
+              (let ((current (aref (aref grid row) col)))
+                (when (or (null current)
+                          (> (cdr wo) (cdr (assq current cell-overlaps))))
+                  (aset (aref grid row) col (car wo))
+                  (puthash (car wo) t has-strong-ownership))))))))
+    ;; Phase 2: For unassigned cells, let windows WITHOUT strong ownership compete
+    (dotimes (row kbd-rows)
+      (dotimes (col kbd-cols)
+        (unless (aref (aref grid row) col)
+          (let* ((cell-overlaps (aref (aref overlaps row) col))
+                 ;; Filter to windows without strong ownership
+                 (needy-overlaps (cl-remove-if
+                                  (lambda (wo) (gethash (car wo) has-strong-ownership))
+                                  cell-overlaps))
+                 ;; Sort by overlap descending
+                 (sorted (sort (copy-sequence needy-overlaps)
+                               (lambda (a b) (> (cdr a) (cdr b)))))
+                 (best (car sorted))
+                 (second (cadr sorted))
+                 (best-overlap (if best (cdr best) 0.0))
+                 (second-overlap (if second (cdr second) 0.0)))
+            (when (and best
+                       (> (- best-overlap second-overlap)
+                          spatial-window--relative-threshold))
+              (aset (aref grid row) col (car best)))))))
     grid))
 
 (defun spatial-window--extract-bounding-boxes (grid kbd-rows kbd-cols window-bounds)

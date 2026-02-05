@@ -156,11 +156,11 @@ With 75% threshold, sidebar-top gets 'p', sidebar-bot gets '/', ';' unmapped."
          (main-keys (cdr (assq win-main result)))
          (top-keys (cdr (assq win-sidebar-top result)))
          (bot-keys (cdr (assq win-sidebar-bot result))))
-    ;; Sidebar-top gets "p" (highest overlap in its region)
-    (should (seq-set-equal-p top-keys '("p")))
+    ;; Sidebar-top gets "p" ";" (main backed off since it has strong ownership)
+    (should (seq-set-equal-p top-keys '("p" ";")))
     ;; Sidebar-bot gets "/" (bottom row of rightmost column)
     (should (seq-set-equal-p bot-keys '("/")))
-    ;; Main gets 27 keys, ";" is unmapped (ambiguous)
+    ;; Main gets 27 keys
     (should (seq-set-equal-p main-keys '("q" "w" "e" "r" "t" "y" "u" "i" "o"
                                           "a" "s" "d" "f" "g" "h" "j" "k" "l"
                                           "z" "x" "c" "v" "b" "n" "m" "," ".")))))
@@ -252,10 +252,10 @@ With 75% threshold, small windows steal keys; some keys unmapped."
     ;; Claude (right half, full height) gets right columns
     (should (seq-set-equal-p (cdr (assq win-claude result))
                              '("y" "u" "i" "o" "p" "h" "j" "k" "l" ";" "n" "m" "," "." "/")))
-    ;; Small windows each get at least one key via stealing
+    ;; Small windows get keys (windows without strong ownership get priority)
     (should (seq-set-equal-p (cdr (assq win-sw1 result)) '("a")))
-    (should (seq-set-equal-p (cdr (assq win-sw2 result)) '("s")))
-    (should (seq-set-equal-p (cdr (assq win-sw3 result)) '("x")))
+    (should (seq-set-equal-p (cdr (assq win-sw2 result)) '("x")))
+    (should (seq-set-equal-p (cdr (assq win-sw3 result)) '("s" "d" "c")))
     (should (seq-set-equal-p (cdr (assq win-sw4 result)) '("b" "v")))
     (should (seq-set-equal-p (cdr (assq win-backtrace result)) '("z")))))
 
@@ -327,11 +327,11 @@ With 75% threshold, narrow windows steal one key each; 'q' unmapped."
          (top-left-keys (cdr (assq win-top-left result)))
          (bot-left-keys (cdr (assq win-bot-left result)))
          (right-keys (cdr (assq win-right result))))
-    ;; Top-left steals "a" (highest overlap for narrow window)
-    (should (seq-set-equal-p top-left-keys '("a")))
-    ;; Bot-left steals "z" (bottom row)
+    ;; Top-left gets "q" "a" (right window backed off since it has strong ownership)
+    (should (seq-set-equal-p top-left-keys '("q" "a")))
+    ;; Bot-left gets "z" (bottom row)
     (should (seq-set-equal-p bot-left-keys '("z")))
-    ;; Right window gets 27 keys, "q" unmapped
+    ;; Right window gets 27 keys
     (should (seq-set-equal-p right-keys '("w" "e" "r" "t" "y" "u" "i" "o" "p"
                                           "s" "d" "f" "g" "h" "j" "k" "l" ";"
                                           "x" "c" "v" "b" "n" "m" "," "." "/")))))
@@ -455,11 +455,11 @@ Tests misaligned splits with actual floating-point bounds from Emacs."
     (should (seq-set-equal-p wide-keys '("w" "e" "r" "t" "y" "u" "i" "o" "p")))
     ;; Magit (32% width, full bottom-left height) gets bottom-left
     (should (seq-set-equal-p magit-keys '("z" "x" "c")))
-    ;; Posframe windows each steal one key from ambiguous zone
-    (should (seq-set-equal-p posframe-top-keys '("k")))
-    (should (seq-set-equal-p posframe-bot-keys '(",")))
-    ;; All 5 windows have keys, 15 total, no duplicates
-    (should (= (length all-keys) 15))
+    ;; Posframe windows get rectangular regions (code-wide backed off)
+    (should (seq-set-equal-p posframe-top-keys '("f" "g" "h" "j" "k" "l" ";")))
+    (should (seq-set-equal-p posframe-bot-keys '("v" "b" "n" "m" "," "." "/")))
+    ;; All 5 windows have keys, 27 total, no duplicates
+    (should (= (length all-keys) 27))
     (should (= (length all-keys) (length (delete-dups (copy-sequence all-keys)))))))
 
 (ert-deftest spatial-window-test-invalid-keyboard-layout ()
