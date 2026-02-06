@@ -94,6 +94,44 @@
     ;; Bottom-left: bottom row left half
     (should (seq-set-equal-p bottom-left-keys '("z" "x" "c" "v" "b")))))
 
+;;; ┌──────────────────┬─────────────┐
+;;; │  magit-rev        │             │
+;;; │  59% wide x 48%   │   claude    │
+;;; ├──────────────────┤   41% wide  │
+;;; │  magit            │   x 98%    │
+;;; │  59% wide x 50%   │   tall     │
+;;; └──────────────────┴─────────────┘
+;;; Keys:
+;;; q w e r t y │ u i o p    ← magit-rev gets row 1 (top)
+;;; a s d f g h │ j k l ;    ← magit wins row 2 (49/51 split, 9% margin > 5%)
+;;; z x c v b n │ m , . /    ← magit gets row 3 (bottom)
+
+(ert-deftest spatial-window-test-near-equal-vertical-split ()
+  "Near-equal vertical split: 49/51 at y=0.486 gives bottom window the middle row.
+The 9% overlap margin exceeds the 5% threshold, so the middle row is assigned
+to magit rather than left ambiguous. Bottom gets 12 keys, top gets 6."
+  (let* ((win-claude 'win-claude)
+         (win-magit-rev 'win-magit-rev)
+         (win-magit 'win-magit)
+         ;; Real layout: left 59%, right 41%, left split 48%/50% vertically
+         (window-bounds
+          `((,win-claude 0.5894736842105263 0.9988304093567252 0.0019230769230769232 0.9846153846153847)
+            (,win-magit-rev 0.0011695906432748538 0.5894736842105263 0.0019230769230769232 0.4855769230769231)
+            (,win-magit 0.0011695906432748538 0.5894736842105263 0.4855769230769231 0.9846153846153847)))
+         (result (spatial-window--assign-keys nil window-bounds))
+         (claude-keys (cdr (assq win-claude result)))
+         (magit-rev-keys (cdr (assq win-magit-rev result)))
+         (magit-keys (cdr (assq win-magit result))))
+    ;; magit-revision: top row, left 6 columns
+    (should (seq-set-equal-p magit-rev-keys '("q" "w" "e" "r" "t" "y")))
+    ;; magit: middle + bottom rows, left 6 columns (wins middle row by 9% margin)
+    (should (seq-set-equal-p magit-keys '("a" "s" "d" "f" "g" "h"
+                                          "z" "x" "c" "v" "b" "n")))
+    ;; claude: all 3 rows, right 4 columns
+    (should (seq-set-equal-p claude-keys '("u" "i" "o" "p"
+                                           "j" "k" "l" ";"
+                                           "m" "," "." "/")))))
+
 ;;; ┌────┬───────────┬──────┐
 ;;; │    │  mid-top  │      │
 ;;; │ L  │    50%    │  R   │
