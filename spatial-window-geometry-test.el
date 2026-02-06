@@ -462,6 +462,35 @@ Tests misaligned splits with actual floating-point bounds from Emacs."
     (should (= (length all-keys) 27))
     (should (= (length all-keys) (length (delete-dups (copy-sequence all-keys)))))))
 
+;;; Middle row assignment threshold characterization
+;;;
+;;; With 3 keyboard rows, the middle row (y=0.33-0.67) is contested in any
+;;; top/bottom split.  Binary-search for the split point where the bigger
+;;; window starts winning the middle row.
+
+(ert-deftest spatial-window-test-middle-row-assignment-threshold ()
+  "Binary-search for the vertical split threshold where bigger window wins middle row.
+With two full-width windows split at y=s, the bottom window is taller when s<0.5.
+Search for the largest s where the bottom window gets 20 keys (wins middle row)."
+  (let ((lo 0.3) (hi 0.5))
+    ;; Binary search: lo = bottom wins middle row, hi = middle row unassigned
+    (dotimes (_ 30)
+      (let* ((mid (* 0.5 (+ lo hi)))
+             (win-top 'win-top) (win-bot 'win-bot)
+             (window-bounds `((,win-top 0.0 1.0 0.0 ,mid)
+                              (,win-bot 0.0 1.0 ,mid 1.0)))
+             (result (spatial-window--assign-keys nil window-bounds))
+             (bot-keys (cdr (assq win-bot result))))
+        (if (= (length bot-keys) 20)
+            (setq lo mid)
+          (setq hi mid))))
+    ;; Threshold is at hi (bigger-side percentage = 100 - hi*100)
+    (let ((bigger-side-pct (- 100.0 (* hi 100.0))))
+      (message "Middle-row threshold: split at %.4f%% → bigger side %.1f%%"
+               (* hi 100.0) bigger-side-pct)
+      ;; V1 (75% ownership threshold): threshold ~41.7%, bigger side ~58.3%
+      (should (> bigger-side-pct 57.0)))))
+
 (ert-deftest spatial-window-test-invalid-keyboard-layout ()
   "Returns nil and displays message when keyboard layout rows have different lengths."
   (let ((invalid-layout '(("q" "w" "e")
