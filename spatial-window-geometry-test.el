@@ -13,10 +13,14 @@
 
 ;;; ┌───────────────────┐
 ;;; │                   │
-;;; │       100%        │
+;;; │   W 100w×100h     │
 ;;; │                   │
 ;;; └───────────────────┘
-;;; Keys: all 30
+;;; W=window
+;;;
+;;; Row 0: W W W W W W W W W W
+;;; Row 1: W W W W W W W W W W
+;;; Row 2: W W W W W W W W W W
 
 (ert-deftest spatial-window-test-assign-keys-single-window ()
   "Single window gets all keys."
@@ -29,13 +33,14 @@
 
 ;;; ┌─────────┬─────────┐
 ;;; │         │         │
-;;; │   50%   │   50%   │
+;;; │L 50w×100h│R 50w×100h│
 ;;; │         │         │
 ;;; └─────────┴─────────┘
-;;; Keys:
-;;; q w e r t │ y u i o p
-;;; a s d f g │ h j k l ;
-;;; z x c v b │ n m , . /
+;;; L=left  R=right
+;;;
+;;; Row 0: L L L L L R R R R R
+;;; Row 1: L L L L L R R R R R
+;;; Row 2: L L L L L R R R R R
 
 (ert-deftest spatial-window-test-assign-keys-2-columns ()
   "2 left-right windows: each gets half columns, all rows."
@@ -53,18 +58,18 @@
                                           "h" "j" "k" "l" ";"
                                           "n" "m" "," "." "/")))))
 
-;;; ┌─────────┬─────────┐
-;;; │ top-L   │         │
-;;; │  50%    │  right  │
-;;; ├─────────┤  100%   │
-;;; │ bot-L   │         │
-;;; │  50%    │         │
-;;; └─────────┴─────────┘
-;;;    50%        50%
-;;; Keys:
-;;; q w e r t │ y u i o p
-;;; · · · · · │ h j k l ;  ← middle row skipped on left (50/50 tie)
-;;; z x c v b │ n m , . /
+;;; ┌──────────┬──────────┐
+;;; │ T        │          │
+;;; │ 50w×50h  │ R        │
+;;; ├──────────┤ 50w×100h │
+;;; │ B        │          │
+;;; │ 50w×50h  │          │
+;;; └──────────┴──────────┘
+;;; T=top-left  B=bottom-left  R=right
+;;;
+;;; Row 0: T T T T T R R R R R
+;;; Row 1: · · · · · R R R R R  ← left skipped (50/50 tie)
+;;; Row 2: B B B B B R R R R R
 
 (ert-deftest spatial-window-test-assign-keys-2-left-1-right ()
   "2 windows top-bottom left, 1 spanning right: right gets all 3 rows."
@@ -95,16 +100,17 @@
     (should (seq-set-equal-p bottom-left-keys '("z" "x" "c" "v" "b")))))
 
 ;;; ┌──────────────────┬─────────────┐
-;;; │  magit-rev        │             │
-;;; │  59% wide x 48%   │   claude    │
-;;; ├──────────────────┤   41% wide  │
-;;; │  magit            │   x 98%    │
-;;; │  59% wide x 50%   │   tall     │
+;;; │  R               │             │
+;;; │  59w×48h         │   C         │
+;;; ├──────────────────┤   41w×98h   │
+;;; │  M               │             │
+;;; │  59w×50h         │             │
 ;;; └──────────────────┴─────────────┘
-;;; Desired keys (middle row unmapped on left — split is too close to 50/50):
-;;; q w e r t y │ u i o p    ← magit-rev gets row 1
-;;; · · · · · · │ j k l ;    ← middle row left side unmapped
-;;; z x c v b n │ m , . /    ← magit gets row 3
+;;; R=magit-rev  M=magit  C=claude
+;;;
+;;; Row 0: R R R R R R C C C C
+;;; Row 1: · · · · · · C C C C  ← left skipped (48/50 ≈ 50/50 tie)
+;;; Row 2: M M M M M M C C C C
 
 (ert-deftest spatial-window-test-near-equal-vertical-split ()
   "Near-equal vertical split: 49/51 at y=0.486 should leave middle row unmapped.
@@ -161,17 +167,17 @@ Search for the largest s where the bottom window gets 20 keys (wins middle row).
       (should (>= bigger-side-pct 62.0)))))
 
 ;;; ┌────┬───────────┬──────┐
-;;; │    │  mid-top  │      │
-;;; │ L  │    50%    │  R   │
-;;; │100%├───────────┤ 100% │
-;;; │    │  mid-bot  │      │
-;;; │    │    50%    │      │
+;;; │    │ T         │      │
+;;; │ L  │ 50w×50h   │  R   │
+;;; │20w │───────────│ 30w  │
+;;; │×   │ B         │ ×    │
+;;; │100h│ 50w×50h   │ 100h │
 ;;; └────┴───────────┴──────┘
-;;;  20%      50%       30%
-;;; Keys:
-;;; q w │ e r t y u │ i o p
-;;; a s │ · · · · · │ k l ;  ← middle skipped in center (50/50)
-;;; z x │ c v b n m │ , . /
+;;; L=left  T=mid-top  B=mid-bot  R=right
+;;;
+;;; Row 0: L L T T T T T R R R
+;;; Row 1: L L · · · · · R R R  ← center skipped (50/50 tie)
+;;; Row 2: L L B B B B B R R R
 
 (ert-deftest spatial-window-test-assign-keys-3-columns ()
   "3 columns: left/right span full height, middle has top-bottom split."
@@ -200,15 +206,19 @@ Search for the largest s where the bottom window gets 20 keys (wins middle row).
     (should (seq-set-equal-p mid-bot-keys '("c" "v" "b" "n" "m")))))
 
 ;;; ┌─────────────────────┬──┐
-;;; │                     │  │ 92%
-;;; │      main 95.5%     ├──┤
-;;; │                     │  │ 8%
+;;; │                     │T │
+;;; │   M 96w×100h        │4w│
+;;; │                     │92h
+;;; │                     ├──┤
+;;; │                     │B │
+;;; │                     │4w│
+;;; │                     │8h│
 ;;; └─────────────────────┴──┘
-;;;                       4.5%
-;;; Keys:
-;;; q w e r t y u i o │ p    ← sidebar-top steals "p", extends to ";"
-;;; a s d f g h j k l │ ;    ← ";" consolidated into sidebar-top (same column)
-;;; z x c v b n m , . │ /    ← sidebar-bot steals "/"
+;;; M=main  T=sidebar-top  B=sidebar-bot
+;;;
+;;; Row 0: M M M M M M M M M T
+;;; Row 1: M M M M M M M M M T  ← T extends via column consolidation
+;;; Row 2: M M M M M M M M M B
 
 (ert-deftest spatial-window-test-assign-keys-extreme-split ()
   "Extreme split: 95.5% main / 4.5% sidebar. All windows must get keys.
@@ -235,13 +245,17 @@ Sidebar-top steals 'p', extends to ';' via column consolidation; sidebar-bot ste
                                           "z" "x" "c" "v" "b" "n" "m" "," ".")))))
 
 ;;; ┌───────────────────┐
-;;; │      win1 33%     │
+;;; │  1  100w×33h      │
 ;;; ├───────────────────┤
-;;; │      win2 34%     │
+;;; │  2  100w×34h      │
 ;;; ├───────────────────┤
-;;; │      win3 33%     │
+;;; │  3  100w×33h      │
 ;;; └───────────────────┘
-;;; Keys: 10 each (1 row per window)
+;;; 1=win1  2=win2  3=win3
+;;;
+;;; Row 0: 1 1 1 1 1 1 1 1 1 1
+;;; Row 1: 2 2 2 2 2 2 2 2 2 2
+;;; Row 2: 3 3 3 3 3 3 3 3 3 3
 
 (ert-deftest spatial-window-test-max-3-rows ()
   "3 top-bottom windows = 3 keyboard rows, each gets exactly 1 row."
@@ -259,10 +273,14 @@ Sidebar-top steals 'p', extends to ';' via column consolidation; sidebar-bot ste
 
 ;;; ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
 ;;; │  │  │  │  │  │  │  │  │  │  │
-;;; │10│10│10│10│10│10│10│10│10│10│ (% each)
+;;; │10│10│10│10│10│10│10│10│10│10│ (10w×100h each)
 ;;; │  │  │  │  │  │  │  │  │  │  │
 ;;; └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
-;;; Keys: 3 each (1 column per window)
+;;; 0=win0  1=win1 ... 9=win9
+;;;
+;;; Row 0: 0 1 2 3 4 5 6 7 8 9
+;;; Row 1: 0 1 2 3 4 5 6 7 8 9
+;;; Row 2: 0 1 2 3 4 5 6 7 8 9
 
 (ert-deftest spatial-window-test-max-10-cols ()
   "10 left-right windows = 10 keyboard columns, each gets 3 keys (1 col × 3 rows)."
@@ -286,15 +304,22 @@ Sidebar-top steals 'p', extends to ';' via column consolidation; sidebar-bot ste
     (should (seq-set-equal-p (cdr (assq win9 result)) '("p" ";" "/")))))
 
 ;;; ┌───────────────────┬─────────┐
-;;; │      magit        │         │
-;;; │       48%         │         │
-;;; ├──┬──┬────┬────────┤  claude │
-;;; │s1│s2│ s3 │   s4   │  100%   │
-;;; ├──┼──┤    │        │         │
-;;; │bt│  │    │        │         │
+;;; │  G  51w×48h       │         │
+;;; │                   │  C      │
+;;; ├──┬──┬────┬────────┤  49w    │
+;;; │A │B │ D  │   E    │  ×100h  │
+;;; │7w│6w│13w │  26w   │         │
+;;; ├──┼──┤×52h│  ×52h  │         │
+;;; │Z │  │    │        │         │
+;;; │7w│  │    │        │         │
+;;; │28h  │    │        │         │
 ;;; └──┴──┴────┴────────┴─────────┘
-;;;        51%              49%
-;;; Keys: all 7 windows get ≥1 (coverage test)
+;;; G=magit  C=claude  A=sw1(7w×24h)  B=sw2(6w×52h)
+;;; D=sw3(13w×52h)  E=sw4(26w×52h)  Z=backtrace(7w×28h)
+;;;
+;;; Row 0: G G G G G C C C C C
+;;; Row 1: A G G · · C C C C C
+;;; Row 2: Z B D E E C C C C C
 
 (ert-deftest spatial-window-test-complex-spanning-layout ()
   "Complex layout: 7 windows with multiple spanning. All must get keys.
@@ -332,16 +357,16 @@ Lower margin assigns more cells directly; small windows steal as needed."
 
 ;;; ┌─────────────┬───────┐
 ;;; │             │       │
-;;; │  main 93%   │claude │
-;;; │             │ 100%  │
-;;; ├─────────────┤       │
-;;; │  diff 5%    │       │
+;;; │ M 63w×93h   │ C     │
+;;; │             │ 37w   │
+;;; ├─────────────┤ ×100h │
+;;; │ D 63w×5h    │       │
 ;;; └─────────────┴───────┘
-;;;      63%         37%
-;;; Keys:
-;;; q w e r t y │ u i o p
-;;; a s d f g h │ j k l ;   ← main gets rows 1-2
-;;; z x c v b n │ m , . /   ← diff gets bottom row (row consolidation)
+;;; M=main  D=diff  C=claude
+;;;
+;;; Row 0: M M M M M M C C C C
+;;; Row 1: M M M M M M C C C C
+;;; Row 2: D D D D D D C C C C  ← D gets row 2 left (row consolidation)
 
 (ert-deftest spatial-window-test-ide-layout-with-thin-panel ()
   "IDE layout: main editor + thin diff panel on left, claude on right.
@@ -371,14 +396,19 @@ Diff panel is same width as main — row consolidation gives it the bottom row."
                                             "m" "," "." "/")))))
 
 ;;; ┌──┬────────────────────────────┐
-;;; │  │                            │
-;;; │4%│                            │
-;;; │  │         claude 96%         │
+;;; │T │                            │
+;;; │4w│                            │
+;;; │77h│     R 96w×98h             │
 ;;; ├──┤                            │
-;;; │4%│                            │
+;;; │B │                            │
+;;; │4w│                            │
+;;; │22h│                           │
 ;;; └──┴────────────────────────────┘
-;;;  4%            96%
-;;; Keys: all 3 windows must get ≥1 (extreme narrow column)
+;;; T=top-left  B=bot-left  R=right
+;;;
+;;; Row 0: T R R R R R R R R R
+;;; Row 1: T R R R R R R R R R  ← T extends via column consolidation
+;;; Row 2: B R R R R R R R R R
 
 (ert-deftest spatial-window-test-extreme-narrow-left-column ()
   "Extreme narrow left column: 4% width split vertically, 96% right window.
@@ -407,12 +437,16 @@ Top-left steals 'a' and extends to 'q' via column consolidation; bot-left steals
                                           "x" "c" "v" "b" "n" "m" "," "." "/")))))
 
 ;;; ┌────────────────────────┬────────────────┐
-;;; │      top-left (60%)    │  top-right 40% │
+;;; │  A  60w×50h            │  B  40w×50h    │
 ;;; ├───────────┬────────────┴────────────────┤
-;;; │ bot-left  │      bot-right (67%)        │
-;;; │   (33%)   │                             │
+;;; │ C 33w×49h │      D  67w×49h             │
+;;; │           │                             │
 ;;; └───────────┴─────────────────────────────┘
-;;; Keys: misaligned vertical splits - bidirectional scoring resolves conflicts
+;;; A=top-left  B=top-right  C=bot-left  D=bot-right
+;;;
+;;; Row 0: A A A A A A B B B B
+;;; Row 1: · · · A · · · · · ·  ← mostly unassigned (misaligned splits)
+;;; Row 2: C C C D D D D D D D
 
 (ert-deftest spatial-window-test-misaligned-vertical-splits ()
   "4 windows where top row split (60/40) differs from bottom row split (33/67).
@@ -442,16 +476,16 @@ Middle row partially assigned where one window clearly dominates a cell."
     (should (seq-set-equal-p bot-right-keys '("v" "b" "n" "m" "," "." "/")))))
 
 ;;; ┌───────────────────────┬────────────────┐
-;;; │     top-left (59%)    │  top-right 41% │
+;;; │  A  59w×50h           │  B  41w×50h    │
 ;;; ├──────────┬────────────┴────────────────┤
-;;; │ bot-left │      bot-right (68%)        │
-;;; │   (32%)  │                             │
+;;; │ C 32w    │      D  68w×49h             │
+;;; │   ×49h   │                             │
 ;;; └──────────┴─────────────────────────────┘
+;;; A=top-left  B=top-right  C=bot-left  D=bot-right
 ;;;
-;;; Previously documented bugs (now FIXED):
-;;; 1. "h" key was unassigned - now middle row is intentionally unmapped (ambiguous)
-;;; 2. Top-left had non-rectangular keys - now gets rectangular block
-;;; 3. Inconsistent row assignment - now consistent rectangular regions
+;;; Row 0: A A A A A A B B B B
+;;; Row 1: · · · A · · · · · ·  ← mostly unassigned (misaligned splits)
+;;; Row 2: C C C D D D D D D D
 
 (ert-deftest spatial-window-test-misaligned-splits-edge-case ()
   "4 windows with 59/41 top and 32/68 bottom split.
@@ -486,15 +520,20 @@ Middle row partially assigned where overlap margin is sufficient."
     (should (= (length all-keys) (length (delete-dups (copy-sequence all-keys)))))))
 
 ;;; ┌────┬─────────────────────────────┐
-;;; │code│                             │
-;;; │nar │      code-wide (89%)        │
-;;; │11% │                             │
+;;; │ N  │                             │
+;;; │11w │   W  89w×48h                │
+;;; │49h │                             │
 ;;; ├────┼─────────────────────────────┤
-;;; │    │     posframe-top (68%)      │
-;;; │mag ├─────────────────────────────┤
-;;; │32% │     posframe-bot (68%)      │
+;;; │    │   P  68w×26h                │
+;;; │ G  ├─────────────────────────────┤
+;;; │32w │   Q  68w×24h                │
+;;; │50h │                             │
 ;;; └────┴─────────────────────────────┘
-;;; Real 5-window layout from development session
+;;; N=code-narrow  W=code-wide  G=magit  P=posframe-top  Q=posframe-bot
+;;;
+;;; Row 0: N W W W W W W W W W
+;;; Row 1: · G · P P P P P P P  ← a,d unassigned (near-50/50 y-split)
+;;; Row 2: G G G · · · · · · ·  ← row 2 right: counts only (P=1, Q=1)
 
 (ert-deftest spatial-window-test-real-dev-session-layout ()
   "Real 5-window layout: narrow code window, wide code, magit, two posframes.

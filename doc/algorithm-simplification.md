@@ -111,6 +111,13 @@ z  x  c  v  b  n  m  ,  .  /     ← / = sidebar-bot (stolen)
 main=27  sidebar-top=2(p,;)  sidebar-bot=1(/)
 ```
 
+Row 0/1/2 key-owner grid (M=main, T=sidebar-top, B=sidebar-bot):
+```
+Row 0: M M M M M M M M M T
+Row 1: M M M M M M M M M T  ← T extends via column consolidation
+Row 2: M M M M M M M M M B
+```
+
 Column consolidation fires: sidebar-top steals p (col 10, row 1), then extends to ; (col 10, row 2) because
 sidebar-top has overlap > 0.2 on that cell and sidebar-bot (the only other keyless window) has 0 overlap on
 row 2. The / cell (col 10, row 3) is not taken because sidebar-bot has overlap > 0 there.
@@ -153,6 +160,13 @@ a  ·  ·  f  g  h  j  k  l  ;     sw1=1(a) sw4=4(b,f,g,v) sw2=1(x)
 z  x  c  v  b  n  m  ,  .  /     sw3=1(c) backtrace=1(z)
 ```
 
+Row 0/1/2 key-owner grid (G=magit, C=claude, A=sw1, B=sw2, D=sw3, E=sw4, Z=backtrace):
+```
+Row 0: G G G G G C C C C C
+Row 1: A G G · · C C C C C
+Row 2: Z B D E E C C C C C
+```
+
 No consolidation: sw1 steals a (col 1, row 2), but has 0 y-overlap on q (row 1) and z (row 3) because sw1 is
 only 24% tall starting at y=48%.
 
@@ -190,6 +204,13 @@ V3 grid (30/30 assigned) — same as V2:
 q  w  e  r  t  y  u  i  o  p     main=17  diff=1(v)  claude=12
 a  s  d  f  g  h  j  k  l  ;     col 7 (u,j,m) assigned to claude
 z  x  c  v  b  n  m  ,  .  /
+```
+
+Row 0/1/2 key-owner grid (M=main, D=diff, C=claude):
+```
+Row 0: M M M M M M C C C C
+Row 1: M M M M M M C C C C
+Row 2: M M M D M M C C C C
 ```
 
 No consolidation: diff steals v (col 4, row 3), but has 0 y-overlap on r (row 1) and f (row 2) because diff
@@ -233,6 +254,13 @@ a  s  d  f  g  h  j  k  l  ;     top-left steals "a", extends to "q" (column con
 z  x  c  v  b  n  m  ,  .  /
 ```
 
+Row 0/1/2 key-owner grid (T=top-left, B=bot-left, R=right):
+```
+Row 0: T R R R R R R R R R
+Row 1: T R R R R R R R R R  ← T extends via column consolidation
+Row 2: B R R R R R R R R R
+```
+
 Column consolidation fires: top-left steals a (col 1, row 2), then extends to q (col 1, row 1) because
 top-left spans 77% of the frame height (y 0.002-0.769), giving it overlap > 0.2 on row 1. It does not extend
 to z (col 1, row 3) because bot-left (another keyless window) has overlap > 0 on that cell.
@@ -272,11 +300,25 @@ q  w  e  r  t  y  u  i  o  p     TL=7  TR=4  BL=3  BR=7
 z  x  c  v  b  n  m  ,  .  /
 ```
 
+Row 0/1/2 key-owner grid (A=top-left, B=top-right, C=bot-left, D=bot-right):
+```
+Row 0: A A A A A A B B B B
+Row 1: · · · A · · · · · ·  ← mostly unassigned (misaligned splits)
+Row 2: C C C D D D D D D D
+```
+
 No consolidation: no keyless windows after assign-cells (all 4 windows get cells directly).
 
 #### misaligned-splits-edge: 59% wide x 50% tall TL, 41% wide x 50% tall TR, 32% wide x 50% tall BL, 68% wide x 50% tall BR
 
 Same pattern as above. V1: 20/30. V2: 21/30. V3: 21/30 (same as V2). No keyless windows, no consolidation.
+
+Row 0/1/2 key-owner grid (same pattern as misaligned-vertical):
+```
+Row 0: A A A A A A B B B B
+Row 1: · · · A · · · · · ·
+Row 2: C C C D D D D D D D
+```
 
 #### real-dev-session: 5 windows
 
@@ -317,6 +359,13 @@ V3 grid (29/30 assigned) — same as V2:
 q  w  e  r  t  y  u  i  o  p     narrow=1(q) wide=9 magit=6(a,s,d,z,x,c)
 a  s  d  ·  g  h  j  k  l  ;     posframe-top=6(g,h,j,k,l,;)
 z  x  c  v  b  n  m  ,  .  /     posframe-bot=7  ("f" unassigned)
+```
+
+Row 0/1/2 key-owner grid (N=narrow, W=wide, G=magit, P=posframe-top, Q=posframe-bot):
+```
+Row 0: N W W W W W W W W W
+Row 1: G G G · P P P P P P  ← f unassigned (near-50/50 y-split)
+Row 2: G G G Q Q Q Q Q Q Q
 ```
 
 No consolidation: narrow steals q (col 1, row 1), but has 0 y-overlap on a (row 2) because narrow only covers

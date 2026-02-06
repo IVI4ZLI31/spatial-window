@@ -133,6 +133,13 @@ Result:
 - `posframe-top`: "f g h j k l ;" (row 1 right, code-wide backed off)
 - `posframe-bot`: "v b n m , . /" (row 2 right)
 
+Row 0/1/2 key-owner grid (N=code-narrow, W=code-wide, G=magit, P=posframe-top, Q=posframe-bot):
+```
+Row 0: N W W W W W W W W W
+Row 1: · · · P P P P P P P  ← a,s,d unassigned (ambiguous)
+Row 2: G G G Q Q Q Q Q Q Q
+```
+
 ## Verification
 
 ```bash
