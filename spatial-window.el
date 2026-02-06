@@ -280,8 +280,10 @@ MESSAGE is displayed in the minibuffer."
       (when message (message "%s" message))
       (set-transient-map
        keymap
-       (lambda () (or (spatial-window--state-selection-active spatial-window--state)
-                      (eq this-command 'spatial-window--show-hints)))
+       (lambda ()
+         (let ((binding (lookup-key keymap (this-command-keys-vector))))
+           (and binding (not (numberp binding))
+                (spatial-window--state-selection-active spatial-window--state))))
        #'spatial-window--cleanup-mode))))
 
 (defun spatial-window--make-selection-keymap ()
