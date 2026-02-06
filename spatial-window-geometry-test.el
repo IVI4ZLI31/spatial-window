@@ -101,15 +101,17 @@
 ;;; │  magit            │   x 98%    │
 ;;; │  59% wide x 50%   │   tall     │
 ;;; └──────────────────┴─────────────┘
-;;; Keys:
-;;; q w e r t y │ u i o p    ← magit-rev gets row 1 (top)
-;;; a s d f g h │ j k l ;    ← magit wins row 2 (49/51 split, 9% margin > 5%)
-;;; z x c v b n │ m , . /    ← magit gets row 3 (bottom)
+;;; Desired keys (middle row unmapped on left — split is too close to 50/50):
+;;; q w e r t y │ u i o p    ← magit-rev gets row 1
+;;; · · · · · · │ j k l ;    ← middle row left side unmapped
+;;; z x c v b n │ m , . /    ← magit gets row 3
 
 (ert-deftest spatial-window-test-near-equal-vertical-split ()
-  "Near-equal vertical split: 49/51 at y=0.486 gives bottom window the middle row.
-The 9% overlap margin exceeds the 5% threshold, so the middle row is assigned
-to magit rather than left ambiguous. Bottom gets 12 keys, top gets 6."
+  :expected-result :failed  ; current algorithm assigns middle row to magit (9% margin > 5% threshold)
+  "Near-equal vertical split: 49/51 at y=0.486 should leave middle row unmapped.
+The split is only ~2% off center — both windows cover roughly half the screen.
+Currently FAILS because the 5% margin threshold is too low: a 0.83% deviation
+from 50/50 is enough to assign the entire middle row."
   (let* ((win-claude 'win-claude)
          (win-magit-rev 'win-magit-rev)
          (win-magit 'win-magit)
@@ -122,15 +124,48 @@ to magit rather than left ambiguous. Bottom gets 12 keys, top gets 6."
          (claude-keys (cdr (assq win-claude result)))
          (magit-rev-keys (cdr (assq win-magit-rev result)))
          (magit-keys (cdr (assq win-magit result))))
-    ;; magit-revision: top row, left 6 columns
+    ;; magit-revision: top row, left 6 columns only
     (should (seq-set-equal-p magit-rev-keys '("q" "w" "e" "r" "t" "y")))
-    ;; magit: middle + bottom rows, left 6 columns (wins middle row by 9% margin)
-    (should (seq-set-equal-p magit-keys '("a" "s" "d" "f" "g" "h"
-                                          "z" "x" "c" "v" "b" "n")))
+    ;; magit: bottom row only, left 6 columns (middle row should be unmapped)
+    (should (seq-set-equal-p magit-keys '("z" "x" "c" "v" "b" "n")))
     ;; claude: all 3 rows, right 4 columns
     (should (seq-set-equal-p claude-keys '("u" "i" "o" "p"
                                            "j" "k" "l" ";"
                                            "m" "," "." "/")))))
+
+;;; Middle row assignment threshold characterization
+;;;
+;;; With 3 keyboard rows, the middle row (y=0.33-0.67) is contested in any
+;;; top/bottom split.  The margin formula is: margin = 3 - 6*s, where s is the
+;;; y-coordinate of the split.  The current 0.05 margin threshold means any
+;;; split at y < 0.4917 (i.e., 0.83% off center) gives the bottom window the
+;;; entire middle row.  This tracks how sensitive the algorithm is.
+
+(ert-deftest spatial-window-test-middle-row-assignment-threshold ()
+  "Track the vertical split threshold where the bigger window wins the middle row.
+With two full-width windows split at y=s, margin = 3 - 6s.
+At s=0.4917 (~49.2%), margin ≈ 0.05 → middle row unassigned (at threshold).
+At s=0.49 (~49.0%), margin = 0.06 → middle row assigned to bottom."
+  ;; At threshold: 49.17% top, middle row unassigned
+  (let* ((win-top 'win-top) (win-bot 'win-bot)
+         (window-bounds `((,win-top 0.0 1.0 0.0 0.4917)
+                          (,win-bot 0.0 1.0 0.4917 1.0)))
+         (result (spatial-window--assign-keys nil window-bounds))
+         (top-keys (cdr (assq win-top result)))
+         (bot-keys (cdr (assq win-bot result))))
+    ;; Each window gets exactly 1 row (middle row unassigned)
+    (should (= (length top-keys) 10))
+    (should (= (length bot-keys) 10)))
+  ;; Just below threshold: 49.0% top, bottom wins middle row
+  (let* ((win-top 'win-top) (win-bot 'win-bot)
+         (window-bounds `((,win-top 0.0 1.0 0.0 0.49)
+                          (,win-bot 0.0 1.0 0.49 1.0)))
+         (result (spatial-window--assign-keys nil window-bounds))
+         (top-keys (cdr (assq win-top result)))
+         (bot-keys (cdr (assq win-bot result))))
+    ;; Bottom wins middle row → 20 keys, top stays at 10
+    (should (= (length top-keys) 10))
+    (should (= (length bot-keys) 20))))
 
 ;;; ┌────┬───────────┬──────┐
 ;;; │    │  mid-top  │      │
