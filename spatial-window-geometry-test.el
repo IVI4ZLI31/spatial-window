@@ -140,13 +140,13 @@
 ;;; └─────────────────────┴──┘
 ;;;                       4.5%
 ;;; Keys:
-;;; q w e r t y u i o │ p    ← sidebar-top steals "p"
-;;; a s d f g h j k l │ ;    ← main keeps ";" (sidebar too narrow to win by margin)
+;;; q w e r t y u i o │ p    ← sidebar-top steals "p", extends to ";"
+;;; a s d f g h j k l │ ;    ← ";" consolidated into sidebar-top (same column)
 ;;; z x c v b n m , . │ /    ← sidebar-bot steals "/"
 
 (ert-deftest spatial-window-test-assign-keys-extreme-split ()
   "Extreme split: 95.5% main / 4.5% sidebar. All windows must get keys.
-Sidebar-top steals 'p', sidebar-bot steals '/', main keeps 28 keys."
+Sidebar-top steals 'p', extends to ';' via column consolidation; sidebar-bot steals '/'; main gets 27."
   (let* ((win-main 'win-main)
          (win-sidebar-top 'win-sidebar-top)
          (win-sidebar-bot 'win-sidebar-bot)
@@ -159,13 +159,13 @@ Sidebar-top steals 'p', sidebar-bot steals '/', main keeps 28 keys."
          (main-keys (cdr (assq win-main result)))
          (top-keys (cdr (assq win-sidebar-top result)))
          (bot-keys (cdr (assq win-sidebar-bot result))))
-    ;; Sidebar-top steals "p" (highest overlap in rightmost column)
-    (should (seq-set-equal-p top-keys '("p")))
+    ;; Sidebar-top steals "p" and extends to ";" (column consolidation)
+    (should (seq-set-equal-p top-keys '("p" ";")))
     ;; Sidebar-bot steals "/" (bottom-right corner)
     (should (seq-set-equal-p bot-keys '("/")))
-    ;; Main gets 28 keys (including ";" which was unmapped in old algorithm)
+    ;; Main gets 27 keys
     (should (seq-set-equal-p main-keys '("q" "w" "e" "r" "t" "y" "u" "i" "o"
-                                          "a" "s" "d" "f" "g" "h" "j" "k" "l" ";"
+                                          "a" "s" "d" "f" "g" "h" "j" "k" "l"
                                           "z" "x" "c" "v" "b" "n" "m" "," ".")))))
 
 ;;; ┌───────────────────┐
@@ -316,7 +316,7 @@ Diff panel steals 'v'; claude now gets col 6 (u,j,m) due to lower margin."
 
 (ert-deftest spatial-window-test-extreme-narrow-left-column ()
   "Extreme narrow left column: 4% width split vertically, 96% right window.
-Each narrow window steals one key; right gets 28 keys."
+Top-left steals 'a' and extends to 'q' via column consolidation; bot-left steals 'z'; right gets 27."
   (let* ((win-top-left 'win-top-left)
          (win-bot-left 'win-bot-left)
          (win-right 'win-right)
@@ -331,12 +331,12 @@ Each narrow window steals one key; right gets 28 keys."
          (top-left-keys (cdr (assq win-top-left result)))
          (bot-left-keys (cdr (assq win-bot-left result)))
          (right-keys (cdr (assq win-right result))))
-    ;; Top-left steals "a" (highest overlap for its position)
-    (should (seq-set-equal-p top-left-keys '("a")))
+    ;; Top-left steals "a" and extends to "q" (column consolidation)
+    (should (seq-set-equal-p top-left-keys '("q" "a")))
     ;; Bot-left steals "z" (bottom row)
     (should (seq-set-equal-p bot-left-keys '("z")))
-    ;; Right window gets 28 keys (including "q" which was unmapped before)
-    (should (seq-set-equal-p right-keys '("q" "w" "e" "r" "t" "y" "u" "i" "o" "p"
+    ;; Right window gets 27 keys
+    (should (seq-set-equal-p right-keys '("w" "e" "r" "t" "y" "u" "i" "o" "p"
                                           "s" "d" "f" "g" "h" "j" "k" "l" ";"
                                           "x" "c" "v" "b" "n" "m" "," "." "/")))))
 

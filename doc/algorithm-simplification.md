@@ -2,15 +2,23 @@
 
 ## Summary
 
-Replaced the 6-step bounding-box pipeline (~200 lines, 8 functions, 2 thresholds) with a margin-based
-assignment algorithm (~65 lines, 3 new functions, 1 threshold). The new algorithm produces equal or better
-results: more keys assigned in ambiguous layouts, identical results for clean geometries.
+Three implementations compared:
 
-## Old Algorithm (6-step pipeline)
+- **V1 (old):** 6-step bounding-box pipeline (~200 lines, 8 functions, 2 thresholds)
+- **V2 (margin-only):** margin assign + steal(1) (~65 lines, 3 functions, 1 threshold)
+- **V3 (margin + column consolidation):** margin assign + steal(1) + column extend (~80 lines, 3 functions,
+  1 threshold + 1 overlap floor)
+
+V3 fixes V2's weakness where the steal mechanism only grabs 1 key per keyless window. In layouts with a narrow
+screen column fully covered by two stacked windows, V2 splits the corresponding keyboard column across the
+narrow windows and the large neighbor. V3 extends stolen cells vertically through the same keyboard column
+where overlap allows.
+
+## V1: Old Algorithm (6-step pipeline)
 
 1. **Compute all overlaps** — build 2D matrix of (cell, window) overlap fractions
-2. **Two-phase ownership** — Phase 1: cells with >75% overlap claimed immediately. Phase 2: remaining cells go to
-   "needy" windows (those without any strong ownership) if they beat competitors by >20% margin
+2. **Two-phase ownership** — Phase 1: cells with >75% overlap claimed immediately. Phase 2: remaining cells go
+   to "needy" windows (those without any strong ownership) if they beat competitors by >20% margin
 3. **Extract bounding boxes** — compute min/max row/col rectangle for each window's owned cells
 4. **Resolve box overlaps** — where rectangles overlap, highest-overlap window wins
 5. **Steal for keyless windows** — iterate: find best stealable cell, recalculate donor's bounding box
@@ -19,14 +27,14 @@ results: more keys assigned in ambiguous layouts, identical results for clean ge
 The bounding-box machinery (steps 3-4, ~120 lines) existed to enforce rectangular key regions. This doesn't
 matter for UX because users see the overlay showing exactly which keys map to each window.
 
-## New Algorithm (3 steps)
+## V2: Margin-Only Algorithm (3 steps)
 
 1. **`assign-cells`** — For each cell, compute overlap with all windows. Assign to best window if
    `best - second_best > 0.05` margin. Otherwise leave nil (ambiguous).
 2. **`ensure-all-windows-have-keys`** — For each window with 0 keys: find cell with highest overlap where
-   current owner has >1 key. Steal it. Uses count hash table for O(1) lookups instead of O(n×m) rescans.
+   current owner has >1 key. Steal it. Uses count hash table for O(1) lookups instead of O(n*m) rescans.
    Iterates until convergence.
-3. **`final-to-keys`** — unchanged from old algorithm.
+3. **`final-to-keys`** — unchanged from V1.
 
 ### Why 0.05 margin?
 
@@ -35,230 +43,333 @@ split should go to the 60% window) but large enough to leave truly ambiguous cel
 splits at window boundaries). 0.05 (5%) achieves this: a 52.5%/47.5% split is assigned, a 50%/50% split is
 not.
 
-## Before/After Comparison
+## V3: Margin + Column Consolidation (V2 + column extend)
 
-### Test Cases With Identical Results
+Same as V2, with one addition to step 2: after stealing a cell at (row, col), extend vertically through the
+same keyboard column. An additional cell at (ext-row, col) is taken when:
 
-These layouts have clean geometry where cells fall entirely within one window:
+1. The thief's overlap on that cell > 0.2
+2. No other keyless window has overlap > 0 on that cell
+3. The current owner (if any) has >1 key after the take
+
+This is "column consolidation" — once a small window claims a cell in a column, it extends vertically as far as
+its spatial overlap allows, without starving other keyless windows.
+
+## Test Case Comparison
+
+### Clean Geometries (V1 = V2 = V3)
+
+These layouts have clean geometry where cells fall entirely within one window. All three implementations
+produce identical results.
 
 | Test Case | Keys Assigned | Notes |
 |-----------|:------------:|-------|
-| single-window | 30/30 | Trivial: one window gets all keys |
-| 2-columns | 30/30 | Clean 50/50 vertical split |
-| 2-left-1-right | 25/30 | Middle row left side unassigned (50/50 vertical tie) |
-| 3-columns | 25/30 | Middle row center unassigned (50/50 vertical tie) |
-| max-3-rows | 30/30 | Clean 33/33/33 horizontal split |
-| max-10-cols | 30/30 | Clean 10×10% vertical splits |
+| single-window (100% wide x 100% tall) | 30/30 | Trivial: one window gets all keys |
+| 2-columns (50% wide x 100% tall each) | 30/30 | Clean 50/50 vertical split |
+| 2-left-1-right (50% wide x 50% tall each left, 50% wide x 100% tall right) | 25/30 | Middle row left side
+unassigned (50/50 vertical tie) |
+| 3-columns (20% wide x 100% tall, 50% wide x 50% tall x 2, 30% wide x 100% tall) | 25/30 | Middle row center
+unassigned (50/50 vertical tie) |
+| max-3-rows (100% wide x 33% tall each) | 30/30 | Clean 33/33/33 horizontal split |
+| max-10-cols (10% wide x 100% tall each) | 30/30 | Clean 10x10% vertical splits |
 
-### Test Cases With Changed Results
+### Changed Cases
 
-#### extreme-split (95.5% main / 4.5% sidebar)
+#### extreme-split: 95.5% wide x 100% tall main, 4.5% wide sidebar (92% tall top, 8% tall bottom)
 
 ```
-Window layout:              Keyboard (3×10):
+Window layout:
 ┌─────────────────────┬──┐
-│                     │  │  OLD: main=27  sidebar-top=2(p,;)  sidebar-bot=1(/)
-│      main 95.5%     ├──┤  NEW: main=28  sidebar-top=1(p)    sidebar-bot=1(/)
-│                     │  │
-└─────────────────────┴──┘  ";" now goes to main (wins by margin) instead of
-                    4.5%    being given to sidebar-top via Phase 2 needy logic
+│                     │  │ 92% tall
+│  main               ├──┤
+│  95.5% wide x 100%  │  │ 8% tall
+└─────────────────────┴──┘
+                    4.5% wide
 ```
 
-OLD grid (30/30 assigned):
+V1 grid (30/30 assigned):
 ```
 q  w  e  r  t  y  u  i  o  p     ← p = sidebar-top
-a  s  d  f  g  h  j  k  l  ;     ← ; = sidebar-top
+a  s  d  f  g  h  j  k  l  ;     ← ; = sidebar-top (Phase 2 needy logic)
 z  x  c  v  b  n  m  ,  .  /     ← / = sidebar-bot
+main=27  sidebar-top=2(p,;)  sidebar-bot=1(/)
 ```
 
-NEW grid (30/30 assigned):
+V2 grid (30/30 assigned):
 ```
 q  w  e  r  t  y  u  i  o  p     ← p = sidebar-top (stolen)
 a  s  d  f  g  h  j  k  l  ;     ← ; = main (wins by margin)
 z  x  c  v  b  n  m  ,  .  /     ← / = sidebar-bot (stolen)
+main=28  sidebar-top=1(p)  sidebar-bot=1(/)
 ```
 
-#### complex-spanning (7 windows)
+V3 grid (30/30 assigned):
+```
+q  w  e  r  t  y  u  i  o  p     ← p = sidebar-top (stolen)
+a  s  d  f  g  h  j  k  l  ;     ← ; = sidebar-top (column consolidation from p)
+z  x  c  v  b  n  m  ,  .  /     ← / = sidebar-bot (stolen)
+main=27  sidebar-top=2(p,;)  sidebar-bot=1(/)
+```
+
+Column consolidation fires: sidebar-top steals p (col 10, row 1), then extends to ; (col 10, row 2) because
+sidebar-top has overlap > 0.2 on that cell and sidebar-bot (the only other keyless window) has 0 overlap on
+row 2. The / cell (col 10, row 3) is not taken because sidebar-bot has overlap > 0 there.
+
+#### complex-spanning: 7 windows
 
 ```
 Window layout:
 ┌───────────────────┬─────────┐
-│      magit        │         │
-│       48%         │         │
-├──┬──┬────┬────────┤  claude │
-│s1│s2│ s3 │   s4   │  100%   │
-├──┼──┤    │        │         │
+│      magit         │         │
+│  51% wide x 48%    │         │
+├──┬──┬────┬────────┤  claude  │
+│s1│s2│ s3 │   s4   │ 49% wide│
+├──┼──┤    │        │ x 100%  │
 │bt│  │    │        │         │
 └──┴──┴────┴────────┴─────────┘
-       51%              49%
+s1: 7% wide x 24% tall    s2: 6% wide x 52% tall
+s3: 13% wide x 52% tall   s4: 26% wide x 52% tall
+bt: 7% wide x 28% tall
 ```
 
-OLD grid (28/30 assigned):
+V1 grid (28/30 assigned):
 ```
-q  w  e  r  t  y  u  i  o  p     magit=5(q,w,e,r,t)  claude=15(right half)
+q  w  e  r  t  y  u  i  o  p     magit=5(q,w,e,r,t) claude=15(right half)
 a  ·  s  d  ·  h  j  k  l  ;     sw1=1(a) sw3=3(s,d,c) sw2=1(x)
 z  x  c  v  b  n  m  ,  .  /     sw4=2(b,v) backtrace=1(z)
 ```
 
-NEW grid (30/30 assigned):
+V2 grid (30/30 assigned):
 ```
-q  w  e  r  t  y  u  i  o  p     magit=7(q,w,e,r,t,s,d)  claude=15(right half)
+q  w  e  r  t  y  u  i  o  p     magit=7(q,w,e,r,t,s,d) claude=15(right half)
 a  ·  ·  f  g  h  j  k  l  ;     sw1=1(a) sw4=4(b,f,g,v) sw2=1(x)
 z  x  c  v  b  n  m  ,  .  /     sw3=1(c) backtrace=1(z)
 ```
 
-Magit gets `s,d` from middle row (strong overlap). sw4 gets `f,g` (spatial position matches).
-sw3 shrinks from 3 to 1 key — acceptable since it's a very narrow window.
+V3 grid (30/30 assigned) — same as V2:
+```
+q  w  e  r  t  y  u  i  o  p     magit=7(q,w,e,r,t,s,d) claude=15(right half)
+a  ·  ·  f  g  h  j  k  l  ;     sw1=1(a) sw4=4(b,f,g,v) sw2=1(x)
+z  x  c  v  b  n  m  ,  .  /     sw3=1(c) backtrace=1(z)
+```
 
-#### ide-layout-thin-panel (main + diff + claude)
+No consolidation: sw1 steals a (col 1, row 2), but has 0 y-overlap on q (row 1) and z (row 3) because sw1 is
+only 24% tall starting at y=48%.
+
+#### ide-layout-thin-panel: 63% wide main + 5% tall diff + 37% wide claude
 
 ```
 Window layout:
 ┌─────────────┬───────┐
 │             │       │
-│  main 93%   │claude │
-│             │ 100%  │
-├─────────────┤       │
-│  diff 5%    │       │
+│  main       │claude │
+│  63% wide   │ 37%   │
+│  x 93% tall │ wide  │
+├─────────────┤ x100% │
+│  diff       │ tall  │
+│  63%w x 5%t │       │
 └─────────────┴───────┘
-     63%         37%
 ```
 
-OLD grid (27/30 assigned):
+V1 grid (27/30 assigned):
 ```
 q  w  e  r  t  y  ·  i  o  p     main=17  diff=1(v)  claude=9
-a  s  d  f  g  h  ·  k  l  ;     col 6 (u,j,m) unmapped — boundary ambiguity
+a  s  d  f  g  h  ·  k  l  ;     col 7 (u,j,m) unmapped — boundary ambiguity
 z  x  c  v  b  n  ·  ,  .  /
 ```
 
-NEW grid (30/30 assigned):
+V2 grid (30/30 assigned):
 ```
 q  w  e  r  t  y  u  i  o  p     main=17  diff=1(v)  claude=12
-a  s  d  f  g  h  j  k  l  ;     col 6 (u,j,m) now assigned to claude
+a  s  d  f  g  h  j  k  l  ;     col 7 (u,j,m) assigned to claude
 z  x  c  v  b  n  m  ,  .  /     (claude wins by margin at the 63% boundary)
 ```
 
-#### extreme-narrow-left (4% left / 96% right)
+V3 grid (30/30 assigned) — same as V2:
+```
+q  w  e  r  t  y  u  i  o  p     main=17  diff=1(v)  claude=12
+a  s  d  f  g  h  j  k  l  ;     col 7 (u,j,m) assigned to claude
+z  x  c  v  b  n  m  ,  .  /
+```
+
+No consolidation: diff steals v (col 4, row 3), but has 0 y-overlap on r (row 1) and f (row 2) because diff
+is only 5% tall at the bottom of the frame.
+
+#### extreme-narrow-left: 4% wide left column (77% tall top, 22% tall bottom), 96% wide right
 
 ```
 Window layout:
 ┌──┬────────────────────────────┐
 │  │                            │
-│4%│         right 96%          │
+│TL│        right               │
+│4%│        96% wide x 98% tall │
+│w │                            │
+│77│                            │
+│t │                            │
 ├──┤                            │
-│4%│                            │
+│BL│                            │
+│22│                            │
 └──┴────────────────────────────┘
 ```
 
-OLD grid (30/30 assigned):
+V1 grid (30/30 assigned):
 ```
-q  w  e  r  t  y  u  i  o  p     top-left=2(q,a)  bot-left=1(z)  right=27
-a  s  d  f  g  h  j  k  l  ;     "q","a" given to top-left via Phase 2
+q  w  e  r  t  y  u  i  o  p     top-left=2(q,a) bot-left=1(z) right=27
+a  s  d  f  g  h  j  k  l  ;     "q","a" given to top-left via Phase 2 needy logic
 z  x  c  v  b  n  m  ,  .  /
 ```
 
-NEW grid (30/30 assigned):
+V2 grid (30/30 assigned):
 ```
-q  w  e  r  t  y  u  i  o  p     top-left=1(a)  bot-left=1(z)  right=28
+q  w  e  r  t  y  u  i  o  p     top-left=1(a) bot-left=1(z) right=28
 a  s  d  f  g  h  j  k  l  ;     top-left steals only "a" (highest overlap)
 z  x  c  v  b  n  m  ,  .  /     "q" stays with right (no Phase 2 to give it away)
 ```
 
-#### misaligned-vertical-splits (60/40 top, 33/67 bottom)
+V3 grid (30/30 assigned):
+```
+q  w  e  r  t  y  u  i  o  p     top-left=2(q,a) bot-left=1(z) right=27
+a  s  d  f  g  h  j  k  l  ;     top-left steals "a", extends to "q" (column consolidation)
+z  x  c  v  b  n  m  ,  .  /
+```
+
+Column consolidation fires: top-left steals a (col 1, row 2), then extends to q (col 1, row 1) because
+top-left spans 77% of the frame height (y 0.002-0.769), giving it overlap > 0.2 on row 1. It does not extend
+to z (col 1, row 3) because bot-left (another keyless window) has overlap > 0 on that cell.
+
+#### misaligned-vertical-splits: 60% wide x 50% tall TL, 40% wide x 50% tall TR, 33% wide x 50% tall BL, 67% wide x 50% tall BR
 
 ```
 Window layout:
 ┌────────────────────────┬────────────────┐
-│      top-left (60%)    │  top-right 40% │
+│   top-left             │  top-right     │
+│   60% wide x 50% tall  │ 40%w x 50%t   │
 ├───────────┬────────────┴────────────────┤
-│ bot-left  │      bot-right (67%)        │
-│   (33%)   │                             │
+│ bot-left  │      bot-right              │
+│ 33%w x    │      67%w x 50%t           │
+│ 50%t      │                             │
 └───────────┴─────────────────────────────┘
 ```
 
-OLD grid (19/30 assigned):
+V1 grid (19/30 assigned):
 ```
 q  w  e  r  t  y  u  i  o  p     TL=6  TR=4  BL=3  BR=6
 ·  ·  ·  ·  ·  ·  ·  ·  ·  ·     entire middle row unmapped (ambiguous)
 z  x  c  ·  b  n  m  ,  .  /
 ```
 
-NEW grid (21/30 assigned):
+V2 grid (21/30 assigned):
 ```
 q  w  e  r  t  y  u  i  o  p     TL=7  TR=4  BL=3  BR=7
 ·  ·  ·  f  ·  ·  ·  ·  ·  ·     "f" assigned to TL, "v" to BR
 z  x  c  v  b  n  m  ,  .  /     (these cells have clear overlap advantage)
 ```
 
-#### misaligned-splits-edge (59/41 top, 32/68 bottom)
+V3 grid (21/30 assigned) — same as V2:
+```
+q  w  e  r  t  y  u  i  o  p     TL=7  TR=4  BL=3  BR=7
+·  ·  ·  f  ·  ·  ·  ·  ·  ·     "f" assigned to TL, "v" to BR
+z  x  c  v  b  n  m  ,  .  /
+```
 
-Same pattern as above. OLD: 20/30. NEW: 21/30. Middle row cell "f" assigned to top-left, "v" to bot-right.
+No consolidation: no keyless windows after assign-cells (all 4 windows get cells directly).
 
-#### real-dev-session (5 windows)
+#### misaligned-splits-edge: 59% wide x 50% tall TL, 41% wide x 50% tall TR, 32% wide x 50% tall BL, 68% wide x 50% tall BR
+
+Same pattern as above. V1: 20/30. V2: 21/30. V3: 21/30 (same as V2). No keyless windows, no consolidation.
+
+#### real-dev-session: 5 windows
 
 ```
 Window layout:
 ┌────┬─────────────────────────────┐
 │code│                             │
-│nar │      code-wide (89%)        │
-│11% │                             │
-├────┼─────────────────────────────┤
-│    │     posframe-top (68%)      │
+│nar │  code-wide                  │
+│11% │  89% wide x 48% tall       │
+│w x │                             │
+│49% ├─────────────────────────────┤
+│t   │  posframe-top               │
+├────┤  68% wide x 26% tall       │
 │mag ├─────────────────────────────┤
-│32% │     posframe-bot (68%)      │
+│32% │  posframe-bot               │
+│w x │  68% wide x 24% tall       │
+│50% │                             │
+│t   │                             │
 └────┴─────────────────────────────┘
 ```
 
-OLD grid (27/30 assigned):
+V1 grid (27/30 assigned):
 ```
-q  w  e  r  t  y  u  i  o  p     narrow=1(q)  wide=9  magit=3(z,x,c)
+q  w  e  r  t  y  u  i  o  p     narrow=1(q) wide=9 magit=3(z,x,c)
 ·  ·  ·  f  g  h  j  k  l  ;     posframe-top=7(f,g,h,j,k,l,;)
 z  x  c  v  b  n  m  ,  .  /     posframe-bot=7  (a,s,d unassigned)
 ```
 
-NEW grid (29/30 assigned):
+V2 grid (29/30 assigned):
 ```
-q  w  e  r  t  y  u  i  o  p     narrow=1(q)  wide=9  magit=6(a,s,d,z,x,c)
+q  w  e  r  t  y  u  i  o  p     narrow=1(q) wide=9 magit=6(a,s,d,z,x,c)
 a  s  d  ·  g  h  j  k  l  ;     posframe-top=6(g,h,j,k,l,;)
 z  x  c  v  b  n  m  ,  .  /     posframe-bot=7  ("f" unassigned)
 ```
 
-Magit picks up `a,s,d` from middle row (clear overlap from its 32% width spanning rows 2-3). Only `f` remains
-unassigned — it's at the boundary between magit and posframe-top.
+V3 grid (29/30 assigned) — same as V2:
+```
+q  w  e  r  t  y  u  i  o  p     narrow=1(q) wide=9 magit=6(a,s,d,z,x,c)
+a  s  d  ·  g  h  j  k  l  ;     posframe-top=6(g,h,j,k,l,;)
+z  x  c  v  b  n  m  ,  .  /     posframe-bot=7  ("f" unassigned)
+```
+
+No consolidation: narrow steals q (col 1, row 1), but has 0 y-overlap on a (row 2) because narrow only covers
+the top 49% of the frame (row 2 maps to the middle third, y=0.33-0.67).
 
 ## Summary Table
 
-| Test Case | OLD assigned | NEW assigned | Delta | Changed windows |
-|-----------|:-----------:|:-----------:|:-----:|-----------------|
-| single-window | 30 | 30 | 0 | — |
-| 2-columns | 30 | 30 | 0 | — |
-| 2-left-1-right | 25 | 25 | 0 | — |
-| 3-columns | 25 | 25 | 0 | — |
-| max-3-rows | 30 | 30 | 0 | — |
-| max-10-cols | 30 | 30 | 0 | — |
-| extreme-split | 30 | 30 | 0 | sidebar-top: 2→1, main: 27→28 |
-| complex-spanning | 28 | 30 | +2 | magit: 5→7, sw4: 2→4, sw3: 3→1 |
-| ide-layout-thin-panel | 27 | 30 | +3 | claude: 9→12 |
-| extreme-narrow-left | 30 | 30 | 0 | top-left: 2→1, right: 27→28 |
-| misaligned-vertical | 19 | 21 | +2 | TL: 6→7, BR: 6→7 |
-| misaligned-splits-edge | 20 | 21 | +1 | TL: 6→7 |
-| real-dev-session | 27 | 29 | +2 | magit: 3→6, posframe-top: 7→6 |
+| Test Case | V1 | V2 | V3 | V2 vs V1 | V3 vs V2 |
+|-----------|:--:|:--:|:--:|:--------:|:--------:|
+| single-window | 30 | 30 | 30 | — | — |
+| 2-columns | 30 | 30 | 30 | — | — |
+| 2-left-1-right | 25 | 25 | 25 | — | — |
+| 3-columns | 25 | 25 | 25 | — | — |
+| max-3-rows | 30 | 30 | 30 | — | — |
+| max-10-cols | 30 | 30 | 30 | — | — |
+| extreme-split | 30 | 30 | 30 | sidebar-top: 2->1 | sidebar-top: 1->2 (consolidation) |
+| complex-spanning | 28 | 30 | 30 | magit: 5->7, +2 keys | — |
+| ide-layout-thin-panel | 27 | 30 | 30 | claude: 9->12, +3 keys | — |
+| extreme-narrow-left | 30 | 30 | 30 | top-left: 2->1 | top-left: 1->2 (consolidation) |
+| misaligned-vertical | 19 | 21 | 21 | TL: 6->7, BR: 6->7 | — |
+| misaligned-splits-edge | 20 | 21 | 21 | — | — |
+| real-dev-session | 27 | 29 | 29 | magit: 3->6 | — |
 
 ## Trade-offs
 
+### V2 vs V1
+
 **Gains:**
-- 288 lines → 124 lines (net -164 lines, 57% reduction)
+- 288 lines -> 124 lines (net -164 lines, 57% reduction)
 - 8 deleted functions, 3 new functions
 - Single threshold (0.05) vs two thresholds (0.75 + 0.20)
 - More keys assigned in ambiguous layouts (up to +3 per case)
-- Simpler steal logic: O(1) count lookups via hash table vs O(n×m) grid rescans
+- Simpler steal logic: O(1) count lookups via hash table vs O(n*m) grid rescans
 
 **Losses:**
 - Key regions are no longer guaranteed rectangular (but this was invisible to users)
 - "Needy window" Phase 2 logic removed — tiny windows that previously got extra cells via the
   `has-strong-ownership` filter now only get cells through the steal mechanism
-- In extreme-narrow-left, top-left gets 1 key instead of 2 (but it's a 4% wide window)
+- In extreme-narrow-left and extreme-split, narrow windows get 1 key instead of 2
+
+### V3 vs V2
+
+**Gains:**
+- Column consolidation restores multi-key assignment for narrow windows in extreme-narrow-left and
+  extreme-split (the two cases where V2 regressed from V1)
+- Leftmost keyboard column maps to leftmost screen column (matches user spatial intuition)
+- ~15 lines added to `ensure-all-windows-have-keys`, no new functions
+
+**Losses:**
+- One additional parameter (0.2 overlap floor) though it's a conservative threshold
+- Slightly more complex steal logic
 
 **Neutral:**
-- Clean geometries (clean splits, no ambiguity) produce identical results
-- All windows still guaranteed ≥1 key
+- All 17 other tests produce identical results (consolidation doesn't fire)
+- All windows still guaranteed >=1 key
+- Clean geometries unchanged

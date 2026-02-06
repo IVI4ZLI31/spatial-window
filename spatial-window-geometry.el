@@ -155,6 +155,32 @@ donor that has >1 key.  Iterates until convergence.  Modifies FINAL."
                   (puthash win 1 counts)
                   (when old-owner
                     (puthash old-owner (1- (gethash old-owner counts 0)) counts))
+                  ;; Column consolidation: extend in same column
+                  (dolist (ext-row (number-sequence 0 (1- kbd-rows)))
+                    (unless (= ext-row best-row)
+                      (let* ((ext-ov (spatial-window--cell-overlap
+                                      ext-row best-col kbd-rows kbd-cols
+                                      (nth 1 wb) (nth 2 wb) (nth 3 wb) (nth 4 wb)))
+                             (ext-owner (aref (aref final ext-row) best-col))
+                             (ext-can-take
+                              (and (> ext-ov 0.2)
+                                   (or (null ext-owner)
+                                       (> (gethash ext-owner counts 0) 1))
+                                   (not (cl-some
+                                         (lambda (other-wb)
+                                           (and (not (eq (car other-wb) win))
+                                                (= (gethash (car other-wb) counts 0) 0)
+                                                (> (spatial-window--cell-overlap
+                                                    ext-row best-col kbd-rows kbd-cols
+                                                    (nth 1 other-wb) (nth 2 other-wb)
+                                                    (nth 3 other-wb) (nth 4 other-wb))
+                                                   0)))
+                                         window-bounds)))))
+                        (when ext-can-take
+                          (aset (aref final ext-row) best-col win)
+                          (puthash win (1+ (gethash win counts 0)) counts)
+                          (when ext-owner
+                            (puthash ext-owner (1- (gethash ext-owner counts 0)) counts))))))
                   (setq changed t))))))))))
 
 (defun spatial-window--final-to-keys (final kbd-rows kbd-cols kbd-layout)
