@@ -107,11 +107,9 @@
 ;;; z x c v b n │ m , . /    ← magit gets row 3
 
 (ert-deftest spatial-window-test-near-equal-vertical-split ()
-  :expected-result :failed  ; current algorithm assigns middle row to magit (9% margin > 5% threshold)
   "Near-equal vertical split: 49/51 at y=0.486 should leave middle row unmapped.
 The split is only ~2% off center — both windows cover roughly half the screen.
-Currently FAILS because the 5% margin threshold is too low: a 0.83% deviation
-from 50/50 is enough to assign the entire middle row."
+Y-dominance margin (0.75) requires at least a 62.5/37.5 split to assign."
   (let* ((win-claude 'win-claude)
          (win-magit-rev 'win-magit-rev)
          (win-magit 'win-magit)
@@ -136,36 +134,31 @@ from 50/50 is enough to assign the entire middle row."
 ;;; Middle row assignment threshold characterization
 ;;;
 ;;; With 3 keyboard rows, the middle row (y=0.33-0.67) is contested in any
-;;; top/bottom split.  The margin formula is: margin = 3 - 6*s, where s is the
-;;; y-coordinate of the split.  The current 0.05 margin threshold means any
-;;; split at y < 0.4917 (i.e., 0.83% off center) gives the bottom window the
-;;; entire middle row.  This tracks how sensitive the algorithm is.
+;;; top/bottom split.  Binary-search for the split point where the bigger
+;;; window starts winning the middle row.
 
 (ert-deftest spatial-window-test-middle-row-assignment-threshold ()
-  "Track the vertical split threshold where the bigger window wins the middle row.
-With two full-width windows split at y=s, margin = 3 - 6s.
-At s=0.4917 (~49.2%), margin ≈ 0.05 → middle row unassigned (at threshold).
-At s=0.49 (~49.0%), margin = 0.06 → middle row assigned to bottom."
-  ;; At threshold: 49.17% top, middle row unassigned
-  (let* ((win-top 'win-top) (win-bot 'win-bot)
-         (window-bounds `((,win-top 0.0 1.0 0.0 0.4917)
-                          (,win-bot 0.0 1.0 0.4917 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
-         (top-keys (cdr (assq win-top result)))
-         (bot-keys (cdr (assq win-bot result))))
-    ;; Each window gets exactly 1 row (middle row unassigned)
-    (should (= (length top-keys) 10))
-    (should (= (length bot-keys) 10)))
-  ;; Just below threshold: 49.0% top, bottom wins middle row
-  (let* ((win-top 'win-top) (win-bot 'win-bot)
-         (window-bounds `((,win-top 0.0 1.0 0.0 0.49)
-                          (,win-bot 0.0 1.0 0.49 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
-         (top-keys (cdr (assq win-top result)))
-         (bot-keys (cdr (assq win-bot result))))
-    ;; Bottom wins middle row → 20 keys, top stays at 10
-    (should (= (length top-keys) 10))
-    (should (= (length bot-keys) 20))))
+  "Binary-search for the vertical split threshold where bigger window wins middle row.
+With two full-width windows split at y=s, the bottom window is taller when s<0.5.
+Search for the largest s where the bottom window gets 20 keys (wins middle row)."
+  (let ((lo 0.3) (hi 0.5))
+    ;; Binary search: lo = bottom wins middle row, hi = middle row unassigned
+    (dotimes (_ 30)
+      (let* ((mid (* 0.5 (+ lo hi)))
+             (win-top 'win-top) (win-bot 'win-bot)
+             (window-bounds `((,win-top 0.0 1.0 0.0 ,mid)
+                              (,win-bot 0.0 1.0 ,mid 1.0)))
+             (result (spatial-window--assign-keys nil window-bounds))
+             (bot-keys (cdr (assq win-bot result))))
+        (if (= (length bot-keys) 20)
+            (setq lo mid)
+          (setq hi mid))))
+    ;; Threshold is at hi (bigger-side percentage = 100 - hi*100)
+    (let ((bigger-side-pct (- 100.0 (* hi 100.0))))
+      (message "Middle-row threshold: split at %.4f%% → bigger side %.1f%%"
+               (* hi 100.0) bigger-side-pct)
+      ;; V4 (y-dominance 0.75): threshold ~37.5%, bigger side ~62.5%
+      (should (>= bigger-side-pct 62.0)))))
 
 ;;; ┌────┬───────────┬──────┐
 ;;; │    │  mid-top  │      │
@@ -323,17 +316,18 @@ Lower margin assigns more cells directly; small windows steal as needed."
             (,win-sw4 0.255 0.511 0.483 1.0)
             (,win-backtrace 0.0 0.066 0.725 1.0)))
          (result (spatial-window--assign-keys nil window-bounds)))
-    ;; Magit (top-left ~51%) gets top row + middle row overlap
+    ;; Magit (top-left ~51%) gets top row + middle row "s","d"
     (should (seq-set-equal-p (cdr (assq win-magit result))
                              '("q" "w" "e" "r" "t" "s" "d")))
     ;; Claude (right half, full height) gets right columns
     (should (seq-set-equal-p (cdr (assq win-claude result))
                              '("y" "u" "i" "o" "p" "h" "j" "k" "l" ";" "n" "m" "," "." "/")))
     ;; Small windows steal keys as needed
+    ;; sw4 loses "f","g" (y-dominance: sw4 vs magit near-50/50 y-split, x_diff=0)
     (should (seq-set-equal-p (cdr (assq win-sw1 result)) '("a")))
     (should (seq-set-equal-p (cdr (assq win-sw2 result)) '("x")))
     (should (seq-set-equal-p (cdr (assq win-sw3 result)) '("c")))
-    (should (seq-set-equal-p (cdr (assq win-sw4 result)) '("b" "f" "g" "v")))
+    (should (seq-set-equal-p (cdr (assq win-sw4 result)) '("v" "b")))
     (should (seq-set-equal-p (cdr (assq win-backtrace result)) '("z")))))
 
 ;;; ┌─────────────┬───────┐
@@ -346,12 +340,12 @@ Lower margin assigns more cells directly; small windows steal as needed."
 ;;;      63%         37%
 ;;; Keys:
 ;;; q w e r t y │ u i o p
-;;; a s d f g h │ j k l ;   ← main gets 2 rows (unbalanced)
-;;; z x c v b n │ m , . /   ← diff gets 1 row
+;;; a s d f g h │ j k l ;   ← main gets rows 1-2
+;;; z x c v b n │ m , . /   ← diff gets bottom row (row consolidation)
 
 (ert-deftest spatial-window-test-ide-layout-with-thin-panel ()
   "IDE layout: main editor + thin diff panel on left, claude on right.
-Diff panel steals 'v'; claude now gets col 6 (u,j,m) due to lower margin."
+Diff panel is same width as main — row consolidation gives it the bottom row."
   (let* ((win-main 'win-main)
          (win-diff 'win-diff)
          (win-claude 'win-claude)
@@ -366,12 +360,11 @@ Diff panel steals 'v'; claude now gets col 6 (u,j,m) due to lower margin."
          (main-keys (cdr (assq win-main result)))
          (diff-keys (cdr (assq win-diff result)))
          (claude-keys (cdr (assq win-claude result))))
-    ;; Main editor gets left-side keys (loses col 6 to claude)
+    ;; Main editor gets rows 1-2 of left columns
     (should (seq-set-equal-p main-keys '("q" "w" "e" "r" "t" "y"
-                                          "a" "s" "d" "f" "g" "h"
-                                          "z" "x" "c" "b" "n")))
-    ;; Thin diff panel steals "v" (highest overlap for its position)
-    (should (seq-set-equal-p diff-keys '("v")))
+                                          "a" "s" "d" "f" "g" "h")))
+    ;; Diff panel gets bottom row left via row consolidation (same column width)
+    (should (seq-set-equal-p diff-keys '("z" "x" "c" "v" "b" "n")))
     ;; Claude window gets right columns including col 6 (u,j,m)
     (should (seq-set-equal-p claude-keys '("u" "i" "o" "p"
                                             "j" "k" "l" ";"
@@ -505,7 +498,9 @@ Middle row partially assigned where overlap margin is sufficient."
 
 (ert-deftest spatial-window-test-real-dev-session-layout ()
   "Real 5-window layout: narrow code window, wide code, magit, two posframes.
-Tests misaligned splits with actual floating-point bounds from Emacs."
+Y-dominance: code-wide vs posframe-top near-50/50 y-split at 0.487 leaves
+middle row mostly unassigned.  posframe-top/bot near-equal (26/24%) leaves
+bottom row right unassigned.  posframe-top recovers via steal+consolidation."
   (let* ((win-posframe-top 'win-posframe-top)
          (win-posframe-bot 'win-posframe-bot)
          (win-code-narrow 'win-code-narrow)
@@ -529,14 +524,18 @@ Tests misaligned splits with actual floating-point bounds from Emacs."
     (should (seq-set-equal-p narrow-keys '("q")))
     ;; Wide code window (89% width, top) gets top row (minus "q")
     (should (seq-set-equal-p wide-keys '("w" "e" "r" "t" "y" "u" "i" "o" "p")))
-    ;; Magit (32% width, bottom-left) gets middle+bottom left columns
-    (should (seq-set-equal-p magit-keys '("a" "s" "d" "z" "x" "c")))
-    ;; Posframe-top gets middle-right area
-    (should (seq-set-equal-p posframe-top-keys '("g" "h" "j" "k" "l" ";")))
-    ;; Posframe-bot gets bottom-right area
-    (should (seq-set-equal-p posframe-bot-keys '("v" "b" "n" "m" "," "." "/")))
-    ;; All 5 windows have keys, 29 total ("f" unassigned), no duplicates
-    (should (= (length all-keys) 29))
+    ;; Magit (32% width, bottom-left) gets left columns
+    (should (seq-set-equal-p magit-keys '("s" "z" "x" "c")))
+    ;; Posframe-top (keyless) steals middle row + 1 bottom cell via consolidation
+    ;; Gets 8 keys: middle row cols 3-9 + 1 bottom row cell
+    (should (= (length posframe-top-keys) 8))
+    (should (seq-set-equal-p (seq-intersection posframe-top-keys
+                                               '("f" "g" "h" "j" "k" "l" ";"))
+                             '("f" "g" "h" "j" "k" "l" ";")))
+    ;; Posframe-bot gets only 1 key (near-equal y-split with posframe-top)
+    (should (= (length posframe-bot-keys) 1))
+    ;; All 5 windows have keys, 23 total, no duplicates
+    (should (= (length all-keys) 23))
     (should (= (length all-keys) (length (delete-dups (copy-sequence all-keys)))))))
 
 (ert-deftest spatial-window-test-invalid-keyboard-layout ()

@@ -340,6 +340,20 @@ the top 49% of the frame (row 2 maps to the middle third, y=0.33-0.67).
 | misaligned-splits-edge | 20 | 21 | 21 | — | — |
 | real-dev-session | 27 | 29 | 29 | magit: 3->6 | — |
 
+## Middle-Row Threshold
+
+For a full-width vertical split at y=s with 3 keyboard rows, the middle row (y=0.333-0.667) is contested.
+The threshold is the minimum deviation from 50/50 before the bigger window wins the entire middle row:
+
+| Version | Threshold Split | Off-Center | How Computed |
+|---------|:--------------:|:----------:|--------------|
+| V1 (main) | 41.7/58.3 | 8.3% | Phase 1 requires >75% overlap: `(0.667-s)/0.333 > 0.75` → `s < 0.417` |
+| V2/V3 (worktree) | 49.2/50.8 | 0.8% | 0.05 margin: `3-6s > 0.05` → `s < 0.4917` |
+| V4 (proposed) | 37.5/62.5 | 12.5% | y-dominance 0.75: `3-6s > 0.75` → `s < 0.375` |
+
+V2/V3's single 0.05 margin is too sensitive for the coarse 3-row y-axis. V4 restores and exceeds V1's
+behavior for vertical splits while keeping V2/V3's simpler x-axis handling.
+
 ## Trade-offs
 
 ### V2 vs V1
