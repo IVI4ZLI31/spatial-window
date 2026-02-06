@@ -105,8 +105,8 @@ Use C-h during selection to toggle overlay visibility."
 (defvar spatial-window--current-assignments nil
   "Current key-to-window assignments for active selection.")
 
-(defvar spatial-window--pending-action nil
-  "Current action mode: nil, `kill', or `swap'.")
+(defvar spatial-window--highlighted-windows nil
+  "Windows to highlight in overlays (for swap source, multi-kill selection).")
 
 (defvar spatial-window--selected-windows nil
   "List of windows selected for kill mode.")
@@ -124,6 +124,19 @@ Use C-h during selection to toggle overlay visibility."
   '((t (:foreground "white" :background "red" :weight bold)))
   "Face for selected windows in kill mode."
   :group 'spatial-window)
+
+(defun spatial-window--show-posframe (buf-name x y &optional selected-p)
+  "Show posframe BUF-NAME at position X, Y.
+If SELECTED-P, use selected face with border."
+  (let ((face (if selected-p 'spatial-window-selected-face 'spatial-window-overlay-face)))
+    (apply #'posframe-show buf-name
+           :poshandler (lambda (_info) (cons x y))
+           :foreground-color (face-foreground face nil t)
+           :background-color (face-background face nil t)
+           :internal-border-width 4
+           (when selected-p
+             (list :border-width 3
+                   :border-color (face-background face nil t))))))
 
 (defun spatial-window--show-overlays (&optional selected-windows)
   "Display key hints as posframes in all windows.
@@ -145,46 +158,27 @@ Returns non-nil if overlays were shown, nil if there are too many windows."
                (grid-str (spatial-window--format-key-grid keys))
                (buf-name (format " *spatial-window-%d*" idx))
                (edges (window-pixel-edges window))
-               (left (nth 0 edges))
-               (top (nth 1 edges))
+               (x (nth 0 edges))
+               (y (nth 1 edges))
                (selected-p (memq window selected-windows)))
           (setq idx (1+ idx))
           (push buf-name spatial-window--posframe-buffers)
           (with-current-buffer (get-buffer-create buf-name)
             (erase-buffer)
             (insert grid-str))
-          (let ((x left) (y top))  ; explicit rebinding for closure
-            (if selected-p
-                (posframe-show buf-name
-                               :poshandler (lambda (_info) (cons x y))
-                               :foreground-color (face-foreground 'spatial-window-selected-face nil t)
-                               :background-color (face-background 'spatial-window-selected-face nil t)
-                               :internal-border-width 4
-                               :border-width 3
-                               :border-color (face-background 'spatial-window-selected-face nil t))
-              (posframe-show buf-name
-                             :poshandler (lambda (_info) (cons x y))
-                             :foreground-color (face-foreground 'spatial-window-overlay-face nil t)
-                             :background-color (face-background 'spatial-window-overlay-face nil t)
-                             :internal-border-width 4)))))
+          (spatial-window--show-posframe buf-name x y selected-p)))
       ;; Show minibuffer overlay if active
       (when (minibuffer-window-active-p (minibuffer-window))
         (let* ((buf-name " *spatial-window-minibuf*")
-               (minibuf-win (minibuffer-window))
-               (edges (window-pixel-edges minibuf-win))
-               (left (nth 0 edges))
-               (top (nth 1 edges)))
+               (edges (window-pixel-edges (minibuffer-window)))
+               (x (nth 0 edges))
+               (y (nth 1 edges)))
           (push buf-name spatial-window--posframe-buffers)
           (with-current-buffer (get-buffer-create buf-name)
             (erase-buffer)
             (insert "┌────────┐\n")
             (insert "└────────┘"))
-          (let ((x left) (y top))
-            (posframe-show buf-name
-                           :poshandler (lambda (_info) (cons x y))
-                           :foreground-color (face-foreground 'spatial-window-overlay-face nil t)
-                           :background-color (face-background 'spatial-window-overlay-face nil t)
-                           :internal-border-width 4))))
+          (spatial-window--show-posframe buf-name x y)))
       t)))
 
 (defun spatial-window--remove-overlays ()
@@ -193,21 +187,24 @@ Returns non-nil if overlays were shown, nil if there are too many windows."
     (posframe-delete buf-name))
   (setq spatial-window--posframe-buffers nil))
 
-(defun spatial-window--select-by-key ()
-  "Select window corresponding to the key that invoked this command.
-Looks up the key in `spatial-window--current-assignments' to find the target.
-If key is unassigned, shows error and stays in selection mode."
-  (interactive)
+(defun spatial-window--get-target-window ()
+  "Return window for pressed key, or nil with error feedback if unbound."
   (let* ((key (this-command-keys))
          (target (cl-find-if (lambda (pair)
                                (member key (cdr pair)))
                              spatial-window--current-assignments)))
     (if target
-        (progn
-          (setq spatial-window--selection-active nil)
-          (select-window (car target)))
+        (car target)
       (message "Key '%s' is unassigned (ambiguous zone)" key)
-      (beep))))
+      (beep)
+      nil)))
+
+(defun spatial-window--select-by-key ()
+  "Select window corresponding to the key that invoked this command."
+  (interactive)
+  (when-let* ((win (spatial-window--get-target-window)))
+    (setq spatial-window--selection-active nil)
+    (select-window win)))
 
 (defun spatial-window--abort ()
   "Abort window selection and clean up overlays."
@@ -218,7 +215,7 @@ If key is unassigned, shows error and stays in selection mode."
 
 (defun spatial-window--reset-state ()
   "Reset all state variables for action modes."
-  (setq spatial-window--pending-action nil
+  (setq spatial-window--highlighted-windows nil
         spatial-window--selected-windows nil
         spatial-window--source-window nil
         spatial-window--overlays-visible nil
@@ -229,13 +226,7 @@ If key is unassigned, shows error and stays in selection mode."
 Once shown, overlays remain until selection mode exits."
   (interactive)
   (unless spatial-window--overlays-visible
-    (let ((highlighted (cond
-                        ((eq spatial-window--pending-action 'swap)
-                         (list spatial-window--source-window))
-                        ((eq spatial-window--pending-action 'kill-multi)
-                         spatial-window--selected-windows)
-                        (t nil))))
-      (spatial-window--show-overlays highlighted))
+    (spatial-window--show-overlays spatial-window--highlighted-windows)
     (setq spatial-window--overlays-visible t)))
 
 (defun spatial-window--select-minibuffer ()
@@ -269,7 +260,8 @@ KEYMAP is the transient keymap to activate.
 HIGHLIGHTED is a list of windows to highlight in overlays.
 MESSAGE is displayed in the minibuffer.
 KEEP-ACTIVE if non-nil keeps the transient map active until explicitly exited."
-  (setq spatial-window--current-assignments (spatial-window--assign-keys))
+  (setq spatial-window--current-assignments (spatial-window--assign-keys)
+        spatial-window--highlighted-windows highlighted)
   (when spatial-window--current-assignments
     (setq spatial-window--selection-active t)
     (if spatial-window-expert-mode
@@ -297,22 +289,14 @@ If minibuffer is active, SPC selects it."
 (defun spatial-window--kill-by-key ()
   "Kill the window corresponding to the pressed key."
   (interactive)
-  (let* ((key (this-command-keys))
-         (target (cl-find-if (lambda (pair)
-                               (member key (cdr pair)))
-                             spatial-window--current-assignments)))
-    (if target
-        (let ((win (car target)))
-          (setq spatial-window--selection-active nil)
-          (when (window-live-p win)
-            (delete-window win))
-          (message "Killed window"))
-      (message "Key '%s' is unassigned (ambiguous zone)" key)
-      (beep))))
+  (when-let* ((win (spatial-window--get-target-window)))
+    (setq spatial-window--selection-active nil)
+    (when (window-live-p win)
+      (delete-window win))
+    (message "Killed window")))
 
 (defun spatial-window--enter-kill-mode ()
   "Enter kill mode for deleting one window."
-  (setq spatial-window--pending-action 'kill)
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--kill-by-key)
    nil
@@ -329,21 +313,15 @@ If minibuffer is active, SPC selects it."
 (defun spatial-window--toggle-selection ()
   "Toggle the selection of the window corresponding to the pressed key."
   (interactive)
-  (let* ((key (this-command-keys))
-         (target (cl-find-if (lambda (pair)
-                               (member key (cdr pair)))
-                             spatial-window--current-assignments)))
-    (if target
-        (let ((win (car target)))
-          (if (memq win spatial-window--selected-windows)
-              (setq spatial-window--selected-windows
-                    (delq win spatial-window--selected-windows))
-            (push win spatial-window--selected-windows))
-          ;; Refresh overlays to show updated selection
-          (spatial-window--show-overlays spatial-window--selected-windows)
-          (spatial-window--kill-multi-mode-message))
-      (message "Key '%s' is unassigned (ambiguous zone)" key)
-      (beep))))
+  (when-let* ((win (spatial-window--get-target-window)))
+    (if (memq win spatial-window--selected-windows)
+        (setq spatial-window--selected-windows
+              (delq win spatial-window--selected-windows))
+      (push win spatial-window--selected-windows))
+    ;; Update highlighted and refresh overlays
+    (setq spatial-window--highlighted-windows spatial-window--selected-windows)
+    (spatial-window--show-overlays spatial-window--highlighted-windows)
+    (spatial-window--kill-multi-mode-message)))
 
 (defun spatial-window--execute-kill-multi ()
   "Kill all selected windows and clean up."
@@ -358,8 +336,7 @@ If minibuffer is active, SPC selects it."
 
 (defun spatial-window--enter-kill-multi-mode ()
   "Enter kill-multi mode for selecting multiple windows to delete."
-  (setq spatial-window--pending-action 'kill-multi
-        spatial-window--selected-windows nil)
+  (setq spatial-window--selected-windows nil)
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--toggle-selection
                                      '(("RET" . spatial-window--execute-kill-multi)))
@@ -388,18 +365,11 @@ If minibuffer is active, SPC selects it."
 (defun spatial-window--select-swap-target ()
   "Select target window for swap operation."
   (interactive)
-  (let* ((key (this-command-keys))
-         (target (cl-find-if (lambda (pair)
-                               (member key (cdr pair)))
-                             spatial-window--current-assignments)))
-    (if target
-        (let ((target-win (car target)))
-          (setq spatial-window--selection-active nil)
-          (spatial-window--swap-windows spatial-window--source-window target-win)
-          (select-window target-win)
-          (message "Swapped windows"))
-      (message "Key '%s' is unassigned (ambiguous zone)" key)
-      (beep))))
+  (when-let* ((win (spatial-window--get-target-window)))
+    (setq spatial-window--selection-active nil)
+    (spatial-window--swap-windows spatial-window--source-window win)
+    (select-window win)
+    (message "Swapped windows")))
 
 (defun spatial-window--enter-swap-mode ()
   "Enter swap mode for exchanging window buffers."
@@ -412,8 +382,7 @@ If minibuffer is active, SPC selects it."
           (select-window (if (eq (selected-window) win1) win2 win1))
           (message "Swapped windows"))
       ;; More than 2 windows: select target
-      (setq spatial-window--pending-action 'swap
-            spatial-window--source-window (selected-window))
+      (setq spatial-window--source-window (selected-window))
       (spatial-window--setup-transient-mode
        (spatial-window--make-mode-keymap #'spatial-window--select-swap-target)
        (list spatial-window--source-window)
