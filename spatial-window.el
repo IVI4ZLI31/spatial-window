@@ -40,7 +40,6 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'seq)
 (require 'spatial-window-geometry)
 
 (declare-function posframe-show "posframe")
@@ -131,18 +130,17 @@ If SELECTED-P, use selected face with border."
                    :border-color (face-background face nil t))))))
 
 (defun spatial-window--show-overlays (&optional selected-windows)
-  "Display key hints as posframes in all windows.
-Stores assignments in state struct for selection.
+  "Display key hints as posframes for current assignments.
+Reads assignments from state (must be set by caller).
 If SELECTED-WINDOWS is non-nil, highlight those windows with a border.
-Returns non-nil if overlays were shown, nil if there are too many windows."
+Returns non-nil if overlays were shown, nil if no assignments."
   (require 'posframe)
   ;; Clean up any existing posframes first
   (spatial-window--remove-overlays)
-  (let ((st spatial-window--state)
-        (assignments (spatial-window--assign-keys))
-        (idx 0))
+  (let* ((st spatial-window--state)
+         (assignments (spatial-window--state-assignments st))
+         (idx 0))
     (setf (spatial-window--state-posframe-buffers st) nil)
-    (setf (spatial-window--state-assignments st) assignments)
     (when assignments
       (dolist (pair assignments)
         (let* ((window (car pair))
