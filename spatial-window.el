@@ -247,9 +247,14 @@ Once shown, overlays remain until selection mode exits."
     (setq spatial-window--overlays-visible t)))
 
 (defun spatial-window--select-minibuffer ()
-  "Select the minibuffer window."
+  "Select the minibuffer window if active, otherwise pass through."
   (interactive)
-  (select-window (minibuffer-window)))
+  (spatial-window--exit-selection-mode)
+  (if (minibuffer-window-active-p (minibuffer-window))
+      (select-window (minibuffer-window))
+    ;; Minibuffer not active; pass through
+    (setq unread-command-events
+          (listify-key-sequence (this-command-keys-vector)))))
 
 (defun spatial-window--cleanup-mode ()
   "Clean up overlays and reset state after any mode ends."
@@ -295,11 +300,10 @@ KEEP-ACTIVE if non-nil keeps the transient map active until explicitly exited."
 
 (defun spatial-window--make-selection-keymap ()
   "Build transient keymap with all keyboard layout keys.
-If minibuffer is active, SPC selects it."
+SPC selects minibuffer if active, otherwise passes through."
   (spatial-window--make-mode-keymap
    #'spatial-window--select-by-key
-   (when (minibuffer-window-active-p (minibuffer-window))
-     '(("SPC" . spatial-window--select-minibuffer)))))
+   '(("SPC" . spatial-window--select-minibuffer))))
 
 ;;; Kill mode functions (single kill)
 
