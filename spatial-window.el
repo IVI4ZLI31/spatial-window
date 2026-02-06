@@ -117,6 +117,9 @@ Use C-h during selection to toggle overlay visibility."
 (defvar spatial-window--overlays-visible nil
   "Whether overlays are currently visible during selection.")
 
+(defvar spatial-window--selection-active nil
+  "Whether selection mode is active.  Controls transient map lifetime.")
+
 (defface spatial-window-selected-face
   '((t (:foreground "white" :background "red" :weight bold)))
   "Face for selected windows in kill mode."
@@ -192,14 +195,19 @@ Returns non-nil if overlays were shown, nil if there are too many windows."
 
 (defun spatial-window--select-by-key ()
   "Select window corresponding to the key that invoked this command.
-Looks up the key in `spatial-window--current-assignments' to find the target."
+Looks up the key in `spatial-window--current-assignments' to find the target.
+If key is unassigned, shows error and stays in selection mode."
   (interactive)
   (let* ((key (this-command-keys))
          (target (cl-find-if (lambda (pair)
                                (member key (cdr pair)))
                              spatial-window--current-assignments)))
-    (when target
-      (select-window (car target)))))
+    (if target
+        (progn
+          (setq spatial-window--selection-active nil)
+          (select-window (car target)))
+      (message "Key '%s' is unassigned (ambiguous zone)" key)
+      (beep))))
 
 (defun spatial-window--abort ()
   "Abort window selection and clean up overlays."
@@ -213,7 +221,8 @@ Looks up the key in `spatial-window--current-assignments' to find the target."
   (setq spatial-window--pending-action nil
         spatial-window--selected-windows nil
         spatial-window--source-window nil
-        spatial-window--overlays-visible nil))
+        spatial-window--overlays-visible nil
+        spatial-window--selection-active nil))
 
 (defun spatial-window--show-hints ()
   "Show window overlays if not already visible.
@@ -262,6 +271,7 @@ MESSAGE is displayed in the minibuffer.
 KEEP-ACTIVE if non-nil keeps the transient map active until explicitly exited."
   (setq spatial-window--current-assignments (spatial-window--assign-keys))
   (when spatial-window--current-assignments
+    (setq spatial-window--selection-active t)
     (if spatial-window-expert-mode
         (setq spatial-window--overlays-visible nil)
       (spatial-window--show-overlays highlighted)
@@ -269,10 +279,9 @@ KEEP-ACTIVE if non-nil keeps the transient map active until explicitly exited."
     (when message (message "%s" message))
     (set-transient-map
      keymap
-     (if keep-active
-         t
-       ;; Stay active after showing hints, exit after other commands
-       (lambda () (eq this-command 'spatial-window--show-hints)))
+     ;; Stay active while selection-active is t, or for show-hints command
+     (lambda () (or spatial-window--selection-active
+                    (eq this-command 'spatial-window--show-hints)))
      #'spatial-window--cleanup-mode)))
 
 (defun spatial-window--make-selection-keymap ()
@@ -292,13 +301,14 @@ If minibuffer is active, SPC selects it."
          (target (cl-find-if (lambda (pair)
                                (member key (cdr pair)))
                              spatial-window--current-assignments)))
-    (when target
-      (let ((win (car target)))
-        (spatial-window--remove-overlays)
-        (spatial-window--reset-state)
-        (when (window-live-p win)
-          (delete-window win))
-        (message "Killed window")))))
+    (if target
+        (let ((win (car target)))
+          (setq spatial-window--selection-active nil)
+          (when (window-live-p win)
+            (delete-window win))
+          (message "Killed window"))
+      (message "Key '%s' is unassigned (ambiguous zone)" key)
+      (beep))))
 
 (defun spatial-window--enter-kill-mode ()
   "Enter kill mode for deleting one window."
@@ -323,15 +333,17 @@ If minibuffer is active, SPC selects it."
          (target (cl-find-if (lambda (pair)
                                (member key (cdr pair)))
                              spatial-window--current-assignments)))
-    (when target
-      (let ((win (car target)))
-        (if (memq win spatial-window--selected-windows)
-            (setq spatial-window--selected-windows
-                  (delq win spatial-window--selected-windows))
-          (push win spatial-window--selected-windows))
-        ;; Refresh overlays to show updated selection
-        (spatial-window--show-overlays spatial-window--selected-windows)
-        (spatial-window--kill-multi-mode-message)))))
+    (if target
+        (let ((win (car target)))
+          (if (memq win spatial-window--selected-windows)
+              (setq spatial-window--selected-windows
+                    (delq win spatial-window--selected-windows))
+            (push win spatial-window--selected-windows))
+          ;; Refresh overlays to show updated selection
+          (spatial-window--show-overlays spatial-window--selected-windows)
+          (spatial-window--kill-multi-mode-message))
+      (message "Key '%s' is unassigned (ambiguous zone)" key)
+      (beep))))
 
 (defun spatial-window--execute-kill-multi ()
   "Kill all selected windows and clean up."
@@ -380,13 +392,14 @@ If minibuffer is active, SPC selects it."
          (target (cl-find-if (lambda (pair)
                                (member key (cdr pair)))
                              spatial-window--current-assignments)))
-    (when target
-      (let ((target-win (car target)))
-        (spatial-window--remove-overlays)
-        (spatial-window--swap-windows spatial-window--source-window target-win)
-        (select-window target-win)
-        (spatial-window--reset-state)
-        (message "Swapped windows")))))
+    (if target
+        (let ((target-win (car target)))
+          (setq spatial-window--selection-active nil)
+          (spatial-window--swap-windows spatial-window--source-window target-win)
+          (select-window target-win)
+          (message "Swapped windows"))
+      (message "Key '%s' is unassigned (ambiguous zone)" key)
+      (beep))))
 
 (defun spatial-window--enter-swap-mode ()
   "Enter swap mode for exchanging window buffers."
