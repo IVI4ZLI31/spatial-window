@@ -51,6 +51,26 @@ Examples:
 - `C-u M-o K` then press keys to toggle selection, `RET` to kill selected
 - `C-u M-o s` swaps immediately if 2 windows, otherwise select target
 
+### Edge Extension Keys
+
+The number row and keys adjacent to the right edge of the layout act as
+extension keys — pressing them triggers the same window as the nearest
+layout key. This covers the margin of error when your finger overshoots
+while reaching toward a corner or edge of the keyboard.
+
+For QWERTY:
+
+| Extension key(s) | Maps to |
+|-------------------|---------|
+| `` ` ``, `1` | `q` |
+| `2`–`9` | `w`–`o` (key directly below) |
+| `0`, `-`, `=`, `[`, `]` | `p` |
+| `'` | `;` |
+
+This is intentionally *not* a four-row layout. The number row is not
+farther to reach than the letters — it is the same reach, just upward.
+The purpose is purely to absorb overshoot, not to add spatial resolution.
+
 ## Customization
 
 `M-x customize-group RET spatial-window RET`

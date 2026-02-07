@@ -69,6 +69,33 @@
     ("z" "x" "c" "v" "b" "k" "m" "," "." "/"))
   "Colemak keyboard layout.")
 
+(defconst spatial-window-extensions-qwerty
+  '(("`" . "q")
+    ("1" . "q")
+    ("2" . "w")
+    ("3" . "e")
+    ("4" . "r")
+    ("5" . "t")
+    ("6" . "y")
+    ("7" . "u")
+    ("8" . "i")
+    ("9" . "o")
+    ("0" . "p")
+    ("-" . "p")
+    ("=" . "p")
+    ("[" . "p")
+    ("]" . "p")
+    ("'" . ";"))
+  "Edge extension keys for QWERTY layout.
+Keys adjacent to the grid edges that map to the nearest layout key,
+so overshooting while reaching still selects the intended window.")
+
+(defconst spatial-window-extensions-dvorak nil
+  "Edge extension keys for Dvorak layout.")
+
+(defconst spatial-window-extensions-colemak nil
+  "Edge extension keys for Colemak layout.")
+
 (defcustom spatial-window-keyboard-layout 'qwerty
   "Keyboard layout for spatial window selection.
 Can be a symbol naming a preset layout or a custom list of rows."
@@ -93,6 +120,15 @@ Use C-h during selection to toggle overlay visibility."
     ('colemak spatial-window-layout-colemak)
     ((pred listp) spatial-window-keyboard-layout)
     (_ spatial-window-layout-qwerty)))
+
+(defun spatial-window--get-extensions ()
+  "Return edge extension key mapping for current layout.
+Returns alist of (extension-key . base-key)."
+  (pcase spatial-window-keyboard-layout
+    ('qwerty spatial-window-extensions-qwerty)
+    ('dvorak spatial-window-extensions-dvorak)
+    ('colemak spatial-window-extensions-colemak)
+    (_ nil)))
 
 (defface spatial-window-overlay-face
   '((t (:foreground "red" :background "white" :weight bold)))
@@ -182,8 +218,9 @@ Returns non-nil if overlays were shown, nil if no assignments."
 (defun spatial-window--get-target-window ()
   "Return window for pressed key, or nil with error feedback if unbound."
   (let* ((key (this-command-keys))
+         (translated (or (cdr (assoc key (spatial-window--get-extensions))) key))
          (target (cl-find-if (lambda (pair)
-                               (member key (cdr pair)))
+                               (member translated (cdr pair)))
                              (spatial-window--state-assignments spatial-window--state))))
     (if target
         (car target)
@@ -257,6 +294,8 @@ C-g aborts.  In expert mode, C-h shows hint overlays."
     (dolist (row (spatial-window--get-layout))
       (dolist (key row)
         (define-key map (kbd key) key-action)))
+    (dolist (ext (spatial-window--get-extensions))
+      (define-key map (kbd (car ext)) key-action))
     (define-key map (kbd "C-g") #'spatial-window--abort)
     (when spatial-window-expert-mode
       (define-key map (kbd "C-h") #'spatial-window--show-hints))
