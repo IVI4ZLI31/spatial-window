@@ -78,7 +78,9 @@ to dominate in at least one dimension (x or y) before assignment.
 
 (defun spatial-window--cell-overlap (cell-row cell-col kbd-rows kbd-cols
                                                win-x-start win-x-end win-y-start win-y-end)
-  "Compute overlap area between a grid cell and window region.
+  "Compute overlap between grid cell at CELL-ROW, CELL-COL and window region.
+KBD-ROWS and KBD-COLS define grid dimensions.
+WIN-X-START, WIN-X-END, WIN-Y-START, WIN-Y-END define the window bounds.
 Returns fraction of cell area that overlaps with window (0.0 to 1.0)."
   (let* ((cell-x-start (/ (float cell-col) kbd-cols))
          (cell-x-end (/ (float (1+ cell-col)) kbd-cols))
@@ -97,7 +99,7 @@ Returns fraction of cell area that overlaps with window (0.0 to 1.0)."
     (/ overlap-area cell-area)))
 
 (defun spatial-window--assign-cells (kbd-rows kbd-cols window-bounds)
-  "Assign each keyboard cell to the best-overlapping window.
+  "Assign each cell in KBD-ROWS x KBD-COLS grid to best window in WINDOW-BOUNDS.
 A cell is assigned only when:
  1. total overlap margin > `spatial-window--assignment-margin', AND
  2. x-overlap diff > assignment-margin OR
@@ -142,7 +144,7 @@ Returns a 2D vector of window-or-nil."
     grid))
 
 (defun spatial-window--count-all-keys (final kbd-rows kbd-cols)
-  "Count keys per window in FINAL grid.
+  "Count keys per window in FINAL grid of KBD-ROWS x KBD-COLS.
 Returns hash table: window -> count."
   (let ((counts (make-hash-table :test 'eq)))
     (dotimes (row kbd-rows)
@@ -154,8 +156,9 @@ Returns hash table: window -> count."
 
 (defun spatial-window--ensure-all-windows-have-keys (final kbd-rows kbd-cols window-bounds)
   "Ensure every window in WINDOW-BOUNDS has at least one key in FINAL.
-For each keyless window, steal the cell with highest overlap from a
-donor that has >1 key.  Iterates until convergence.  Modifies FINAL."
+KBD-ROWS and KBD-COLS define grid dimensions.  For each keyless window,
+steal the cell with highest overlap from a donor that has >1 key.
+Iterates until convergence.  Modifies FINAL."
   (let ((counts (spatial-window--count-all-keys final kbd-rows kbd-cols))
         (changed t))
     (while changed
@@ -245,8 +248,8 @@ donor that has >1 key.  Iterates until convergence.  Modifies FINAL."
                   (setq changed t))))))))))
 
 (defun spatial-window--final-to-keys (final kbd-rows kbd-cols kbd-layout)
-  "Convert final assignment grid to alist of (window . keys).
-Each window gets all keys within its contiguous rectangular region."
+  "Convert FINAL assignment grid to alist of (window . keys).
+KBD-ROWS and KBD-COLS define grid dimensions, KBD-LAYOUT maps to key strings."
   (let ((result (make-hash-table :test 'eq)))
     (dotimes (row kbd-rows)
       (dotimes (col kbd-cols)
@@ -265,6 +268,7 @@ Each window gets all keys within its contiguous rectangular region."
 Returns alist of (window . (list of keys)).
 
 Optional arguments allow dependency injection for testing:
+  FRAME - frame to use for window bounds
   WINDOW-BOUNDS - list of (window x-start x-end y-start y-end)
   KBD-LAYOUT - keyboard layout as list of rows
 

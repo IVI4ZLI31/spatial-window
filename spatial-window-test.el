@@ -24,7 +24,7 @@
       (should (eq (spatial-window--select-by-key) win1)))))
 
 (ert-deftest spatial-window-test-make-selection-keymap ()
-  "Keymap contains all layout keys and C-g."
+  "Keymap contains all layout keys and \\`C-g'."
   (let ((map (spatial-window--make-selection-keymap)))
     (should (keymapp map))
     (should (lookup-key map "q"))
@@ -35,7 +35,7 @@
 ;;; Focus/unfocus tests
 
 (ert-deftest spatial-window-test-save-and-restore-layout ()
-  "Save and restore layout stack via frame parameter (no tab-bar-mode)."
+  "Save and restore layout stack via frame parameter (no `tab-bar-mode')."
   (set-frame-parameter nil 'spatial-window-config nil)
   (should-not (spatial-window--has-saved-layout-p))
   ;; Push first layout
