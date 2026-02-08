@@ -421,20 +421,11 @@ SPC selects minibuffer if active, otherwise passes through."
 
 (defun spatial-window--enter-swap-mode ()
   "Enter swap mode for exchanging window buffers."
-  (let ((windows (spatial-window--frame-windows)))
-    (if (= (length windows) 2)
-        ;; Exactly 2 windows: swap immediately
-        (let ((win1 (car windows))
-              (win2 (cadr windows)))
-          (spatial-window--swap-windows win1 win2)
-          (select-window (if (eq (selected-window) win1) win2 win1))
-          (message "Swapped windows"))
-      ;; More than 2 windows: select target
-      (setf (spatial-window--state-source-window spatial-window--state) (selected-window))
-      (spatial-window--setup-transient-mode
-       (spatial-window--make-mode-keymap #'spatial-window--select-swap-target)
-       (list (spatial-window--state-source-window spatial-window--state))
-       "Swap mode: select target window. C-h for hints. C-g to abort."))))
+  (setf (spatial-window--state-source-window spatial-window--state) (selected-window))
+  (spatial-window--setup-transient-mode
+   (spatial-window--make-mode-keymap #'spatial-window--select-swap-target)
+   (list (spatial-window--state-source-window spatial-window--state))
+   "Swap mode: select target window. C-h for hints. C-g to abort."))
 
 ;;; Focus/unfocus mode
 
@@ -530,12 +521,10 @@ With prefix ARG (\\[universal-argument]), prompt for action:
 When `spatial-window-expert-mode' is non-nil, overlays are hidden by
 default.  Press C-h to toggle them."
   (interactive "P")
-  (let ((num-windows (length (spatial-window--frame-windows))))
-    (cond
-     ((<= num-windows 1) (message "Only one window"))
-     (arg (spatial-window--prompt-action))
-     (t (spatial-window--setup-transient-mode
-         (spatial-window--make-selection-keymap))))))
+  (if arg
+      (spatial-window--prompt-action)
+    (spatial-window--setup-transient-mode
+     (spatial-window--make-selection-keymap))))
 
 (provide 'spatial-window)
 
