@@ -109,7 +109,7 @@ Can be a symbol naming a preset layout or a custom list of rows."
 (defcustom spatial-window-expert-mode nil
   "When non-nil, hide window overlays by default.
 This can improve responsiveness on configurations where posframe is slow.
-Use C-h during selection to toggle overlay visibility."
+Use \\`C-h' during selection to toggle overlay visibility."
   :type 'boolean
   :group 'spatial-window)
 
@@ -290,7 +290,7 @@ Once shown, overlays remain until selection mode exits."
 (defun spatial-window--make-mode-keymap (key-action &optional extra-bindings)
   "Create keymap binding all layout keys to KEY-ACTION.
 EXTRA-BINDINGS is an alist of (key-string . command) for additional bindings.
-C-g aborts.  In expert mode, C-h shows hint overlays."
+\\`C-g' aborts.  In expert mode, \\`C-h' shows hint overlays."
   (let ((map (make-sparse-keymap)))
     (dolist (row (spatial-window--get-layout))
       (dolist (key row)
@@ -528,12 +528,12 @@ With prefix argument, unfocus (restore saved layout)."
 Shows keyboard grid overlays for spatial selection.
 
 With prefix ARG (\\[universal-argument]), open a transient menu with
-actions: kill, multi-kill, swap, and focus.  Use C-u f to unfocus
+actions: kill, multi-kill, swap, and focus.  Use \\`C-u' f to unfocus
 \(restore saved layout).  Each action can receive its own prefix
 arguments independently.
 
 When `spatial-window-expert-mode' is non-nil, overlays are hidden by
-default.  Press C-h to toggle them."
+default.  Press \\`C-h' to toggle them."
   (interactive "P")
   (if arg
       (spatial-window-action-menu)
