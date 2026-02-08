@@ -165,7 +165,10 @@ Iterates until convergence.  Modifies FINAL."
       (dolist (wb window-bounds)
         (let ((win (car wb)))
           (when (= (gethash win counts 0) 0)
-            ;; Find best stealable cell for this window
+            ;; Find best stealable cell for this window.
+            ;; Penalize cells contested by a wide window (>80% width)
+            ;; that has better overlap, so we don't steal from rows
+            ;; that a full-width panel should own.
             (let ((best-row nil) (best-col nil) (best-ov 0.0))
               (dotimes (row kbd-rows)
                 (dotimes (col kbd-cols)
@@ -174,9 +177,22 @@ Iterates until convergence.  Modifies FINAL."
                               (nth 1 wb) (nth 2 wb) (nth 3 wb) (nth 4 wb)))
                          (owner (aref (aref final row) col))
                          (can-steal (or (null owner)
-                                        (> (gethash owner counts 0) 1))))
-                    (when (and can-steal (> ov best-ov))
-                      (setq best-row row best-col col best-ov ov)))))
+                                        (> (gethash owner counts 0) 1)))
+                         ;; Penalize if a wide window has better overlap
+                         (wide-contested
+                          (cl-some
+                           (lambda (other-wb)
+                             (and (not (eq (car other-wb) win))
+                                  (> (- (nth 2 other-wb) (nth 1 other-wb)) 0.8)
+                                  (> (spatial-window--cell-overlap
+                                      row col kbd-rows kbd-cols
+                                      (nth 1 other-wb) (nth 2 other-wb)
+                                      (nth 3 other-wb) (nth 4 other-wb))
+                                     ov)))
+                           window-bounds))
+                         (adj-ov (if wide-contested (* ov 0.5) ov)))
+                    (when (and can-steal (> adj-ov best-ov))
+                      (setq best-row row best-col col best-ov adj-ov)))))
               (when best-row
                 (let ((old-owner (aref (aref final best-row) best-col)))
                   (aset (aref final best-row) best-col win)
@@ -244,7 +260,50 @@ Iterates until convergence.  Modifies FINAL."
                           (puthash win (1+ (gethash win counts 0)) counts)
                           (when ext-owner
                             (puthash ext-owner (1- (gethash ext-owner counts 0)) counts))))))
-                  (setq changed t))))))))))
+                  (setq changed t))))))))
+    ;; Post-pass: row consolidation for wide windows (>80% frame width).
+    ;; The main loop only consolidates formerly keyless windows; this
+    ;; handles windows like a full-width bottom panel that already had a
+    ;; cell from assign-cells but deserve an entire row.
+    (setq changed t)
+    (while changed
+      (setq changed nil)
+      (dolist (wb window-bounds)
+        (let* ((win (car wb))
+               (win-w (- (nth 2 wb) (nth 1 wb))))
+          (when (and (> win-w 0.8)
+                     (< (- (nth 4 wb) (nth 3 wb)) 0.5))
+            (dotimes (row kbd-rows)
+              (when (cl-loop for c below kbd-cols
+                             thereis (eq (aref (aref final row) c) win))
+                (dotimes (ext-col kbd-cols)
+                  (unless (eq (aref (aref final row) ext-col) win)
+                    (let* ((cell-x0 (/ (float ext-col) kbd-cols))
+                           (cell-x1 (/ (float (1+ ext-col)) kbd-cols))
+                           (x-frac (/ (max 0.0 (- (min cell-x1 (nth 2 wb))
+                                                   (max cell-x0 (nth 1 wb))))
+                                      (- cell-x1 cell-x0)))
+                           (ext-owner (aref (aref final row) ext-col))
+                           (ext-can-take
+                            (and (> x-frac 0.5)
+                                 (or (null ext-owner)
+                                     (and (> (gethash ext-owner counts 0) 1)
+                                          (> (spatial-window--cell-overlap
+                                              row ext-col kbd-rows kbd-cols
+                                              (nth 1 wb) (nth 2 wb)
+                                              (nth 3 wb) (nth 4 wb))
+                                             (spatial-window--cell-overlap
+                                              row ext-col kbd-rows kbd-cols
+                                              (nth 1 (assq ext-owner window-bounds))
+                                              (nth 2 (assq ext-owner window-bounds))
+                                              (nth 3 (assq ext-owner window-bounds))
+                                              (nth 4 (assq ext-owner window-bounds)))))))))
+                      (when ext-can-take
+                        (aset (aref final row) ext-col win)
+                        (puthash win (1+ (gethash win counts 0)) counts)
+                        (when ext-owner
+                          (puthash ext-owner (1- (gethash ext-owner counts 0)) counts))
+                        (setq changed t)))))))))))))
 
 (defun spatial-window--final-to-keys (final kbd-rows kbd-cols kbd-layout)
   "Convert FINAL assignment grid to alist of (window . keys).

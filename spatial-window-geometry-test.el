@@ -607,6 +607,53 @@ over posframe-top)."
          (grid (spatial-window--format-key-grid all-keys)))
     (should (string-match-p "^q w e r t y u i o p$" (car (split-string grid "\n"))))))
 
+;;; ┌──────────┬──────────┐
+;;; │ A        │          │
+;;; │ 51w×51h  │   C      │
+;;; ├──────────┤  50w×81h │
+;;; │ M        │          │
+;;; │ 51w×30h  │          │
+;;; ├──────────┴──────────┤
+;;; │ L    100w×16h       │
+;;; └─────────────────────┘
+;;; A=activities  M=magit  C=claude  L=elpaca-log
+;;;
+;;; Row 0: A A A A A C C C C C
+;;; Row 1: M M M M M C C C C C  ← magit wins (y-dominance over activities)
+;;; Row 2: L L L L L L L L L L  ← full-width bottom window gets entire row
+
+(ert-deftest spatial-window-test-full-width-bottom-panel ()
+  "Full-width bottom panel should get the entire bottom row.
+The panel spans 100% width but only 16% height at the bottom.
+Row consolidation should extend it across all columns."
+  (let* ((win-log 'win-log)
+         (win-activities 'win-activities)
+         (win-magit 'win-magit)
+         (win-claude 'win-claude)
+         (window-bounds
+          `((,win-log        0.0011695906432748538 0.9988304093567252
+                             0.823076923076923 0.9846153846153847)
+            (,win-activities 0.0011695906432748538 0.5087719298245614
+                             0.015384615384615385 0.5259615384615385)
+            (,win-magit      0.0011695906432748538 0.5087719298245614
+                             0.5259615384615385 0.823076923076923)
+            (,win-claude     0.5087719298245614 0.9988304093567252
+                             0.015384615384615385 0.823076923076923)))
+         (result (spatial-window--assign-keys nil window-bounds))
+         (log-keys (cdr (assq win-log result)))
+         (activities-keys (cdr (assq win-activities result)))
+         (magit-keys (cdr (assq win-magit result)))
+         (claude-keys (cdr (assq win-claude result))))
+    ;; elpaca-log spans full width — should get entire bottom row
+    (should (seq-set-equal-p log-keys '("z" "x" "c" "v" "b" "n" "m" "," "." "/")))
+    ;; activities: top row left
+    (should (seq-set-equal-p activities-keys '("q" "w" "e" "r" "t")))
+    ;; magit: middle row left
+    (should (seq-set-equal-p magit-keys '("a" "s" "d" "f" "g")))
+    ;; claude: right side, top + middle rows
+    (should (seq-set-equal-p claude-keys '("y" "u" "i" "o" "p"
+                                           "h" "j" "k" "l" ";")))))
+
 (provide 'spatial-window-geometry-test)
 
 ;;; spatial-window-geometry-test.el ends here
