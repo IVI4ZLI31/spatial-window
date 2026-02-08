@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        emacs-version: ['27.1', '28.2', '29.4']
+        emacs-version: ['28.2', '29.4']
     steps:
       - uses: actions/checkout@v4
 
@@ -27,7 +27,8 @@ jobs:
               (add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\") t)
               (package-initialize)
               (package-refresh-contents)
-              (package-install 'posframe))"
+              (package-install 'posframe)
+              (package-install 'transient))"
 
       - name: Run tests
         run: |
