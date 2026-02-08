@@ -5,7 +5,7 @@
 ;; Author: Le Wang
 ;; URL: https://github.com/lewang/spatial-window
 ;; Version: 0.9.2
-;; Package-Requires: ((emacs "27.1") (posframe "1.0.0") (transient "0.4.0"))
+;; Package-Requires: ((emacs "28.1") (posframe "1.0.0") (transient "0.4.0"))
 ;; Keywords: convenience, windows
 
 ;; This file is not part of GNU Emacs.
