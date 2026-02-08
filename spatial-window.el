@@ -434,30 +434,34 @@ SPC selects minibuffer if active, otherwise passes through."
 ;;; Focus/unfocus mode
 
 (defun spatial-window--save-layout ()
-  "Save the current window configuration to tab or frame storage."
+  "Push the current window configuration onto the layout stack."
   (let ((config (current-window-configuration)))
     (if (bound-and-true-p tab-bar-mode)
         (let* ((tabs (tab-bar-tabs))
                (ct (tab-bar--current-tab-find tabs)))
-          (setf (alist-get 'spatial-window-config (cdr ct)) config)
+          (push config (alist-get 'spatial-window-config (cdr ct)))
           (tab-bar-tabs-set tabs))
-      (set-frame-parameter nil 'spatial-window-config config))))
+      (set-frame-parameter nil 'spatial-window-config
+                           (cons config (frame-parameter nil 'spatial-window-config))))))
 
 (defun spatial-window--restore-layout ()
-  "Restore saved window configuration.
-Returns non-nil on success, clears saved config."
-  (let ((config (if (bound-and-true-p tab-bar-mode)
-                    (alist-get 'spatial-window-config
-                               (cdr (tab-bar--current-tab-find)))
-                  (frame-parameter nil 'spatial-window-config))))
-    (when config
-      (set-window-configuration config)
-      (if (bound-and-true-p tab-bar-mode)
-          (let* ((tabs (tab-bar-tabs))
-                 (ct (tab-bar--current-tab-find tabs)))
-            (setf (alist-get 'spatial-window-config (cdr ct) nil 'remove) nil)
-            (tab-bar-tabs-set tabs))
-        (set-frame-parameter nil 'spatial-window-config nil))
+  "Pop and restore the most recent window configuration from the stack.
+Returns non-nil on success."
+  (let ((stack (if (bound-and-true-p tab-bar-mode)
+                   (alist-get 'spatial-window-config
+                              (cdr (tab-bar--current-tab-find)))
+                 (frame-parameter nil 'spatial-window-config))))
+    (when stack
+      (set-window-configuration (car stack))
+      (let ((rest (cdr stack)))
+        (if (bound-and-true-p tab-bar-mode)
+            (let* ((tabs (tab-bar-tabs))
+                   (ct (tab-bar--current-tab-find tabs)))
+              (if rest
+                  (setf (alist-get 'spatial-window-config (cdr ct)) rest)
+                (setf (alist-get 'spatial-window-config (cdr ct) nil 'remove) nil))
+              (tab-bar-tabs-set tabs))
+          (set-frame-parameter nil 'spatial-window-config rest)))
       t)))
 
 (defun spatial-window--has-saved-layout-p ()
@@ -481,9 +485,13 @@ Saves layout, selects target, deletes all other windows."
 
 (defun spatial-window--focus-description ()
   "Return description for focus menu entry, indicating active status."
-  (if (spatial-window--has-saved-layout-p)
-      "Focus"
-    "[active] Focus / C-u Unfocus"))
+  (let ((stack (spatial-window--has-saved-layout-p)))
+    (if (not stack)
+        "Focus / C-u Unfocus"
+      (let ((depth (length stack)))
+        (if (= depth 1)
+            "Focus / C-u Unfocus [active]"
+          (format "Focus / C-u Unfocus [active:%d]" depth))))))
 
 (defun spatial-window--enter-focus-mode ()
   "Enter focus mode for zooming into a single window.

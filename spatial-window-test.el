@@ -35,12 +35,24 @@
 ;;; Focus/unfocus tests
 
 (ert-deftest spatial-window-test-save-and-restore-layout ()
-  "Save and restore layout via frame parameter (no tab-bar-mode)."
+  "Save and restore layout stack via frame parameter (no tab-bar-mode)."
+  (set-frame-parameter nil 'spatial-window-config nil)
   (should-not (spatial-window--has-saved-layout-p))
+  ;; Push first layout
   (spatial-window--save-layout)
   (should (spatial-window--has-saved-layout-p))
+  (should (= 1 (length (spatial-window--has-saved-layout-p))))
+  ;; Push second layout (nested focus)
+  (spatial-window--save-layout)
+  (should (= 2 (length (spatial-window--has-saved-layout-p))))
+  ;; Pop one level
   (should (spatial-window--restore-layout))
-  (should-not (spatial-window--has-saved-layout-p)))
+  (should (= 1 (length (spatial-window--has-saved-layout-p))))
+  ;; Pop last level
+  (should (spatial-window--restore-layout))
+  (should-not (spatial-window--has-saved-layout-p))
+  ;; Pop from empty stack returns nil
+  (should-not (spatial-window--restore-layout)))
 
 (ert-deftest spatial-window-test-restore-without-saved-layout ()
   "Restore returns nil when no layout is saved."
