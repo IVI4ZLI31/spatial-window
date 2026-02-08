@@ -480,18 +480,22 @@ Saves layout, selects target, deletes all other windows."
     (message "Focused window (unfocus to restore)")))
 
 (defun spatial-window--enter-focus-mode ()
-  "Enter focus mode for zooming into a single window."
+  "Enter focus mode for zooming into a single window.
+With prefix argument, unfocus (restore saved layout)."
   (interactive)
-  (spatial-window--setup-transient-mode
-   (spatial-window--make-mode-keymap #'spatial-window--focus-by-key)
-   nil
-   "Select window to focus. C-h for hints. C-g to abort."))
+  (if current-prefix-arg
+      (spatial-window--unfocus)
+    (spatial-window--setup-transient-mode
+     (spatial-window--make-mode-keymap #'spatial-window--focus-by-key)
+     nil
+     "Select window to focus. C-h for hints. C-g to abort.")))
 
 (defun spatial-window--unfocus ()
   "Restore the previously saved window layout."
   (interactive)
   (if (spatial-window--restore-layout)
       (message "Restored window layout")
+    (beep)
     (message "No saved layout to restore")))
 
 ;;; Action menu
@@ -502,9 +506,7 @@ Saves layout, selects target, deletes all other windows."
    ("k" "Kill" spatial-window--enter-kill-mode)
    ("K" "Multi-kill" spatial-window--enter-kill-multi-mode)
    ("s" "Swap" spatial-window--enter-swap-mode)
-   ("f" "Focus" spatial-window--enter-focus-mode)
-   ("u" "Unfocus" spatial-window--unfocus
-    :if spatial-window--has-saved-layout-p)])
+   ("f" "Focus / C-u Unfocus" spatial-window--enter-focus-mode)])
 
 ;;;###autoload
 (defun spatial-window-select (&optional arg)
@@ -512,8 +514,9 @@ Saves layout, selects target, deletes all other windows."
 Shows keyboard grid overlays for spatial selection.
 
 With prefix ARG (\\[universal-argument]), open a transient menu with
-actions: kill, multi-kill, swap, focus, and unfocus.  Each action
-can receive its own prefix arguments independently.
+actions: kill, multi-kill, swap, and focus.  Use C-u f to unfocus
+\(restore saved layout).  Each action can receive its own prefix
+arguments independently.
 
 When `spatial-window-expert-mode' is non-nil, overlays are hidden by
 default.  Press C-h to toggle them."

@@ -82,13 +82,17 @@
       (should (string-match "Restored" msg)))))
 
 (ert-deftest spatial-window-test-unfocus-without-saved-layout ()
-  "Unfocus reports no saved layout."
-  (let ((msg nil))
+  "Unfocus beeps and reports no saved layout."
+  (let ((msg nil)
+        (beeped nil))
     (cl-letf (((symbol-function 'spatial-window--restore-layout)
                (lambda () nil))
+              ((symbol-function 'beep)
+               (lambda () (setq beeped t)))
               ((symbol-function 'message)
                (lambda (fmt &rest _) (setq msg fmt))))
       (spatial-window--unfocus)
+      (should beeped)
       (should (string-match "No saved" msg)))))
 
 (provide 'spatial-window-test)
