@@ -5,7 +5,7 @@
 ;; Author: Le Wang
 ;; URL: https://github.com/lewang/spatial-window
 ;; Version: 0.9.2
-;; Package-Requires: ((emacs "27.1") (posframe "1.0.0"))
+;; Package-Requires: ((emacs "27.1") (posframe "1.0.0") (transient "0.4.0"))
 ;; Keywords: convenience, windows
 
 ;; This file is not part of GNU Emacs.
@@ -41,6 +41,7 @@
 
 (require 'cl-lib)
 (require 'subr-x)
+(require 'transient)
 (require 'spatial-window-geometry)
 
 (declare-function posframe-show "posframe")
@@ -346,6 +347,7 @@ SPC selects minibuffer if active, otherwise passes through."
 
 (defun spatial-window--enter-kill-mode ()
   "Enter kill mode for deleting one window."
+  (interactive)
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--kill-by-key)
    nil
@@ -387,6 +389,7 @@ SPC selects minibuffer if active, otherwise passes through."
 
 (defun spatial-window--enter-kill-multi-mode ()
   "Enter kill-multi mode for selecting multiple windows to delete."
+  (interactive)
   (setf (spatial-window--state-selected-windows spatial-window--state) nil)
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--toggle-selection
@@ -421,6 +424,7 @@ SPC selects minibuffer if active, otherwise passes through."
 
 (defun spatial-window--enter-swap-mode ()
   "Enter swap mode for exchanging window buffers."
+  (interactive)
   (setf (spatial-window--state-source-window spatial-window--state) (selected-window))
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--select-swap-target)
@@ -477,6 +481,7 @@ Saves layout, selects target, deletes all other windows."
 
 (defun spatial-window--enter-focus-mode ()
   "Enter focus mode for zooming into a single window."
+  (interactive)
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--focus-by-key)
    nil
@@ -484,45 +489,37 @@ Saves layout, selects target, deletes all other windows."
 
 (defun spatial-window--unfocus ()
   "Restore the previously saved window layout."
+  (interactive)
   (if (spatial-window--restore-layout)
       (message "Restored window layout")
     (message "No saved layout to restore")))
 
-;;; Action prompt
+;;; Action menu
 
-(defun spatial-window--prompt-action ()
-  "Prompt for action type and dispatch.
-k = kill, K = kill-multi, s = swap, f = focus, u = unfocus."
-  (let* ((has-saved (spatial-window--has-saved-layout-p))
-         (prompt (concat "(k)ill, (K) multi-kill, (s)wap, (f)ocus"
-                         (when has-saved ", (u)nfocus")
-                         ": "))
-         (chars (append '(?k ?K ?s ?f) (when has-saved '(?u))))
-         (action (read-char-choice prompt chars)))
-    (pcase action
-      (?k (spatial-window--enter-kill-mode))
-      (?K (spatial-window--enter-kill-multi-mode))
-      (?s (spatial-window--enter-swap-mode))
-      (?f (spatial-window--enter-focus-mode))
-      (?u (spatial-window--unfocus)))))
+(transient-define-prefix spatial-window-action-menu ()
+  "Spatial window actions."
+  ["Spatial Window"
+   ("k" "Kill" spatial-window--enter-kill-mode)
+   ("K" "Multi-kill" spatial-window--enter-kill-multi-mode)
+   ("s" "Swap" spatial-window--enter-swap-mode)
+   ("f" "Focus" spatial-window--enter-focus-mode)
+   ("u" "Unfocus" spatial-window--unfocus
+    :if spatial-window--has-saved-layout-p)])
 
 ;;;###autoload
 (defun spatial-window-select (&optional arg)
   "Select a window by pressing a key corresponding to its spatial position.
 Shows keyboard grid overlays for spatial selection.
 
-With prefix ARG (\\[universal-argument]), prompt for action:
-  k - Kill: select one window to delete
-  K - Multi-kill: select multiple windows, RET to delete them
-  s - Swap: exchange buffers between windows
-  f - Focus: zoom into a single window, saving the layout
-  u - Unfocus: restore the saved layout (only shown when available)
+With prefix ARG (\\[universal-argument]), open a transient menu with
+actions: kill, multi-kill, swap, focus, and unfocus.  Each action
+can receive its own prefix arguments independently.
 
 When `spatial-window-expert-mode' is non-nil, overlays are hidden by
 default.  Press C-h to toggle them."
   (interactive "P")
   (if arg
-      (spatial-window--prompt-action)
+      (spatial-window-action-menu)
     (spatial-window--setup-transient-mode
      (spatial-window--make-selection-keymap))))
 
