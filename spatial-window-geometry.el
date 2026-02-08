@@ -2,10 +2,9 @@
 
 ;; Copyright (C) 2025 Le Wang
 
-;; Author: Le Wang
+;; Author: Le Wang <lewang.dev.26@gmail.com>
 ;; URL: https://github.com/lewang/spatial-window
 ;; Version: 0.9.2
-;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: convenience, windows
 
 ;; This file is not part of GNU Emacs.
