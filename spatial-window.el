@@ -214,7 +214,11 @@ Returns non-nil if overlays were shown, nil if no assignments."
   (let ((st spatial-window--state))
     (dolist (buf-name (spatial-window--state-posframe-buffers st))
       (posframe-delete buf-name))
-    (setf (spatial-window--state-posframe-buffers st) nil)))
+    (setf (spatial-window--state-posframe-buffers st) nil)
+    (when (featurep 'vterm)
+      (dolist (win (window-list))
+        (when (eq (buffer-local-value 'major-mode (window-buffer win)) 'vterm-mode)
+          (force-window-update win))))))
 
 (defun spatial-window--get-target-window ()
   "Return window for pressed key, or nil with error feedback if unbound."
