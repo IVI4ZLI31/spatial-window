@@ -479,6 +479,12 @@ Saves layout, selects target, deletes all other windows."
       (delete-other-windows win))
     (message "Focused window (unfocus to restore)")))
 
+(defun spatial-window--focus-description ()
+  "Return description for focus menu entry, indicating active status."
+  (if (spatial-window--has-saved-layout-p)
+      "Focus"
+    "[active] Focus / C-u Unfocus"))
+
 (defun spatial-window--enter-focus-mode ()
   "Enter focus mode for zooming into a single window.
 With prefix argument, unfocus (restore saved layout)."
@@ -506,7 +512,7 @@ With prefix argument, unfocus (restore saved layout)."
    ("k" "Kill" spatial-window--enter-kill-mode)
    ("K" "Multi-kill" spatial-window--enter-kill-multi-mode)
    ("s" "Swap" spatial-window--enter-swap-mode)
-   ("f" "Focus / C-u Unfocus" spatial-window--enter-focus-mode)])
+   ("f" spatial-window--focus-description spatial-window--enter-focus-mode)])
 
 ;;;###autoload
 (defun spatial-window-select (&optional arg)
