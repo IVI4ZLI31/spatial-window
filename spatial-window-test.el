@@ -90,7 +90,7 @@
                (lambda () t))
               ((symbol-function 'message)
                (lambda (fmt &rest _) (setq msg fmt))))
-      (spatial-window--unfocus)
+      (spatial-window-unfocus)
       (should (string-match "Restored" msg)))))
 
 (ert-deftest spatial-window-test-unfocus-without-saved-layout ()
@@ -103,7 +103,7 @@
                (lambda () (setq beeped t)))
               ((symbol-function 'message)
                (lambda (fmt &rest _) (setq msg fmt))))
-      (spatial-window--unfocus)
+      (spatial-window-unfocus)
       (should beeped)
       (should (string-match "No saved" msg)))))
 

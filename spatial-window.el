@@ -345,7 +345,7 @@ SPC selects minibuffer if active, otherwise passes through."
       (delete-window win))
     (message "Killed window")))
 
-(defun spatial-window--enter-kill-mode ()
+(defun spatial-window-enter-kill-mode ()
   "Enter kill mode for deleting one window."
   (interactive)
   (spatial-window--setup-transient-mode
@@ -387,7 +387,7 @@ SPC selects minibuffer if active, otherwise passes through."
         (delete-window win)))
     (message "Killed %d window(s)" (length windows-to-kill))))
 
-(defun spatial-window--enter-kill-multi-mode ()
+(defun spatial-window-enter-kill-multi-mode ()
   "Enter kill-multi mode for selecting multiple windows to delete."
   (interactive)
   (setf (spatial-window--state-selected-windows spatial-window--state) nil)
@@ -422,7 +422,7 @@ SPC selects minibuffer if active, otherwise passes through."
     (select-window win)
     (message "Swapped windows")))
 
-(defun spatial-window--enter-swap-mode ()
+(defun spatial-window-enter-swap-mode ()
   "Enter swap mode for exchanging window buffers."
   (interactive)
   (setf (spatial-window--state-source-window spatial-window--state) (selected-window))
@@ -483,7 +483,7 @@ Saves layout, selects target, deletes all other windows."
       (delete-other-windows win))
     (message "Focused window (unfocus to restore)")))
 
-(defun spatial-window--focus-description ()
+(defun spatial-window-focus-description ()
   "Return description for focus menu entry, indicating active status."
   (let ((stack (spatial-window--has-saved-layout-p)))
     (if (not stack)
@@ -493,18 +493,18 @@ Saves layout, selects target, deletes all other windows."
             "Focus / C-u Unfocus [active]"
           (format "Focus / C-u Unfocus [active:%d]" depth))))))
 
-(defun spatial-window--enter-focus-mode ()
+(defun spatial-window-enter-focus-mode ()
   "Enter focus mode for zooming into a single window.
 With prefix argument, unfocus (restore saved layout)."
   (interactive)
   (if current-prefix-arg
-      (spatial-window--unfocus)
+      (spatial-window-unfocus)
     (spatial-window--setup-transient-mode
      (spatial-window--make-mode-keymap #'spatial-window--focus-by-key)
      nil
      "Select window to focus. C-h for hints. C-g to abort.")))
 
-(defun spatial-window--unfocus ()
+(defun spatial-window-unfocus ()
   "Restore the previously saved window layout."
   (interactive)
   (if (spatial-window--restore-layout)
@@ -517,10 +517,10 @@ With prefix argument, unfocus (restore saved layout)."
 (transient-define-prefix spatial-window-action-menu ()
   "Spatial window actions."
   ["Spatial Window"
-   ("k" "Kill" spatial-window--enter-kill-mode)
-   ("K" "Multi-kill" spatial-window--enter-kill-multi-mode)
-   ("s" "Swap" spatial-window--enter-swap-mode)
-   ("f" spatial-window--focus-description spatial-window--enter-focus-mode)])
+   ("k" "Kill" spatial-window-enter-kill-mode)
+   ("K" "Multi-kill" spatial-window-enter-kill-multi-mode)
+   ("s" "Swap" spatial-window-enter-swap-mode)
+   ("f" spatial-window-focus-description spatial-window-enter-focus-mode)])
 
 ;;;###autoload
 (defun spatial-window-select (&optional arg)
