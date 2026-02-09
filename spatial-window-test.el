@@ -163,7 +163,6 @@
     (should (lookup-key map (kbd "K")))
     (should (lookup-key map (kbd "S")))
     (should (lookup-key map (kbd "F")))
-    (should (lookup-key map (kbd "U")))
     (should (lookup-key map (kbd "<left>")))
     (should (lookup-key map (kbd "<right>")))
     ;; Layout keys also present

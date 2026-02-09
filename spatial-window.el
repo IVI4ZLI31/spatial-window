@@ -147,7 +147,6 @@ Returns alist of (extension-key . base-key)."
   overlays-visible
   selection-active
   action
-  undo-count
   overlay-timer
   history-cursor
   history-live-config)
@@ -376,7 +375,7 @@ SPC selects minibuffer if active, otherwise passes through."
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--kill-by-key)
    nil
-   "Select window to kill. C-h for hints. C-g to abort."))
+   "Select window to kill. C-g to abort."))
 
 ;;; Kill-multi mode functions
 
@@ -457,7 +456,7 @@ SPC selects minibuffer if active, otherwise passes through."
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--select-swap-target)
    (list (spatial-window--state-source-window spatial-window--state))
-   "Swap mode: select target window. C-h for hints. C-g to abort."))
+   "Swap mode: select target window. C-g to abort."))
 
 ;;; Focus/unfocus mode
 
@@ -527,7 +526,7 @@ Saves layout, selects target, deletes all other windows."
   (spatial-window--setup-transient-mode
    (spatial-window--make-mode-keymap #'spatial-window--focus-by-key)
    nil
-   "Select window to focus. C-h for hints. C-g to abort."))
+   "Select window to focus. C-g to abort."))
 
 (defun spatial-window-unfocus ()
   "Restore the previously saved window layout."
@@ -626,22 +625,6 @@ Saves layout, selects target, deletes all other windows."
   (setf (spatial-window--state-action spatial-window--state) 'focus)
   (message "FOCUS: select window to focus"))
 
-(defun spatial-window--undo ()
-  "Undo the most recent window configuration change.
-Stays in selection mode with updated overlays for further actions."
-  (interactive)
-  (let ((st spatial-window--state)
-        (action (spatial-window--restore-layout)))
-    (if (not action)
-        (progn (beep) (message "Nothing to undo"))
-      (setf (spatial-window--state-undo-count st)
-            (1+ (or (spatial-window--state-undo-count st) 0)))
-      ;; Recompute assignments for restored window layout
-      (setf (spatial-window--state-assignments st) (spatial-window--assign-keys))
-      (when (spatial-window--state-overlays-visible st)
-        (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
-      (message "%s" (spatial-window--unified-mode-message)))))
-
 (defun spatial-window--history-refresh ()
   "Recompute assignments and refresh overlays after history navigation."
   (let ((st spatial-window--state))
@@ -656,22 +639,23 @@ Stays in selection mode with updated overlays for further actions."
   (let* ((st spatial-window--state)
          (history (spatial-window--get-history))
          (cursor (spatial-window--state-history-cursor st)))
-    (if (not history)
-        (progn (beep) (message "No history"))
-      (if (null cursor)
-          ;; First left press: save live state, show history[0]
-          (progn
-            (setf (spatial-window--state-history-live-config st)
-                  (current-window-configuration))
-            (setf (spatial-window--state-history-cursor st) 0)
-            (set-window-configuration (cdr (nth 0 history))))
-        ;; Already browsing: go deeper if possible
-        (let ((next (1+ cursor)))
-          (if (>= next (length history))
-              (progn (beep) (message "At oldest entry"))
-            (setf (spatial-window--state-history-cursor st) next)
-            (set-window-configuration (cdr (nth next history))))))
-      (spatial-window--history-refresh))))
+    (cond
+     ((not history)
+      (beep) (message "No history"))
+     ((null cursor)
+      ;; First left press: save live state, show history[0]
+      (setf (spatial-window--state-history-live-config st)
+            (current-window-configuration))
+      (setf (spatial-window--state-history-cursor st) 0)
+      (set-window-configuration (cdr (nth 0 history)))
+      (spatial-window--history-refresh))
+     ((>= (1+ cursor) (length history))
+      (beep) (message "At oldest entry"))
+     (t
+      (let ((next (1+ cursor)))
+        (setf (spatial-window--state-history-cursor st) next)
+        (set-window-configuration (cdr (nth next history)))
+        (spatial-window--history-refresh))))))
 
 (defun spatial-window--history-forward ()
   "Navigate forward (newer) in window configuration history."
@@ -694,15 +678,6 @@ Stays in selection mode with updated overlays for further actions."
          (cdr (nth next (spatial-window--get-history))))
         (spatial-window--history-refresh))))))
 
-(defun spatial-window--undo-message-part ()
-  "Return undo portion of mode message, or empty string if no history."
-  (let ((stack (spatial-window--has-saved-layout-p)))
-    (if (not stack) ""
-      (let* ((done (or (spatial-window--state-undo-count spatial-window--state) 0))
-             (total (+ done (length stack)))
-             (action (car (car stack))))
-        (format " (U)ndo %s (%d/%d)" action done total)))))
-
 (defun spatial-window--history-message-part ()
   "Return history browsing position, or empty string if not browsing."
   (let ((cursor (spatial-window--state-history-cursor spatial-window--state)))
@@ -714,8 +689,7 @@ Stays in selection mode with updated overlays for further actions."
 
 (defun spatial-window--unified-mode-message ()
   "Return hint message for unified selection mode."
-  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s%s"
-          (spatial-window--undo-message-part)
+  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s"
           (spatial-window--history-message-part)))
 
 (defun spatial-window--make-unified-keymap ()
@@ -728,7 +702,6 @@ Stays in selection mode with updated overlays for further actions."
     (define-key map (kbd "M") #'spatial-window--set-action-multi-kill)
     (define-key map (kbd "S") #'spatial-window--set-action-swap)
     (define-key map (kbd "F") #'spatial-window--set-action-focus)
-    (define-key map (kbd "U") #'spatial-window--undo)
     (define-key map (kbd "<left>") #'spatial-window--history-back)
     (define-key map (kbd "<right>") #'spatial-window--history-forward)
     map))
@@ -737,15 +710,14 @@ Stays in selection mode with updated overlays for further actions."
 (defun spatial-window-select ()
   "Select a window by pressing a key corresponding to its spatial position.
 
-layout key to switch to that window immediately.
+Press a layout key to switch to that window immediately.
 
 Uppercase modifiers change the action before selecting:
   K - Kill: then press a key to delete that window
   M - Multi-kill: toggle windows to mark, RET to delete them all
   S - Swap: then press a key to swap buffers with current window
   F - Focus: then press a key to zoom into that window
-  U - Undo: cycle back through saved window configurations
-  Left/Right - Browse window configuration history non-destructively
+  Left/Right - Browse window configuration history
 
 When `spatial-window-overlay-delay' is set, overlays appear after
 the configured delay instead of immediately."
