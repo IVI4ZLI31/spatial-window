@@ -249,7 +249,10 @@ If no target window found (ambiguous key), do nothing."
        ,@body)))
 
 (defun spatial-window--exit-selection-mode ()
-  "Exit selection mode: clear flag and remove overlays."
+  "Exit selection mode: cancel timer, clear flag, and remove overlays."
+  (let ((timer (spatial-window--state-overlay-timer spatial-window--state)))
+    (when (timerp timer)
+      (cancel-timer timer)))
   (setf (spatial-window--state-selection-active spatial-window--state) nil)
   (spatial-window--remove-overlays))
 
@@ -263,6 +266,9 @@ If no target window found (ambiguous key), do nothing."
 (defun spatial-window--abort ()
   "Abort window selection and clean up overlays."
   (interactive)
+  (let ((timer (spatial-window--state-overlay-timer spatial-window--state)))
+    (when (timerp timer)
+      (cancel-timer timer)))
   (spatial-window--remove-overlays)
   (spatial-window--reset-state)
   (keyboard-quit))
