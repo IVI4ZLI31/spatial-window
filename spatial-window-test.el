@@ -107,6 +107,54 @@
       (should beeped)
       (should (string-match "No saved" msg)))))
 
+;;; Unified action mode tests
+
+(ert-deftest spatial-window-test-act-by-key-kill ()
+  "Unified act-by-key dispatches kill action correctly."
+  (let* ((win1 (selected-window))
+         (deleted nil)
+         (spatial-window--state
+          (spatial-window--make-state
+           :assignments `((,win1 . ("q" "w" "e")))
+           :action 'kill)))
+    (cl-letf (((symbol-function 'this-command-keys)
+               (lambda () "q"))
+              ((symbol-function 'window-live-p)
+               (lambda (_w) t))
+              ((symbol-function 'delete-window)
+               (lambda (w) (setq deleted w)))
+              ((symbol-function 'spatial-window--remove-overlays)
+               #'ignore))
+      (spatial-window--act-by-key)
+      (should (eq deleted win1)))))
+
+(ert-deftest spatial-window-test-act-by-key-select ()
+  "Unified act-by-key defaults to window selection."
+  (let* ((win1 (selected-window))
+         (selected nil)
+         (spatial-window--state
+          (spatial-window--make-state
+           :assignments `((,win1 . ("q" "w" "e"))))))
+    (cl-letf (((symbol-function 'this-command-keys)
+               (lambda () "q"))
+              ((symbol-function 'select-window)
+               (lambda (w) (setq selected w)))
+              ((symbol-function 'spatial-window--remove-overlays)
+               #'ignore))
+      (spatial-window--act-by-key)
+      (should (eq selected win1)))))
+
+(ert-deftest spatial-window-test-unified-keymap-has-modifiers ()
+  "Unified keymap contains action modifier keys."
+  (let ((map (spatial-window--make-unified-keymap)))
+    (should (lookup-key map (kbd "K")))
+    (should (lookup-key map (kbd "S")))
+    (should (lookup-key map (kbd "F")))
+    (should (lookup-key map (kbd "U")))
+    ;; Layout keys also present
+    (should (lookup-key map "q"))
+    (should (lookup-key map "a"))))
+
 (provide 'spatial-window-test)
 
 ;;; spatial-window-test.el ends here

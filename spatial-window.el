@@ -143,7 +143,8 @@ Returns alist of (extension-key . base-key)."
   selected-windows
   source-window
   overlays-visible
-  selection-active)
+  selection-active
+  action)
 
 (defvar spatial-window--state (spatial-window--make-state)
   "Active session state for spatial-window.")
@@ -502,49 +503,102 @@ Saves layout, selects target, deletes all other windows."
     (beep)
     (message "No saved layout to restore")))
 
-;;; Action dispatch
+;;; Unified selection with action modifiers
 
-(defun spatial-window--action-menu-message ()
-  "Return message string for action dispatch."
+(defun spatial-window--act-by-key ()
+  "Apply current action to the window corresponding to the pressed key."
+  (interactive)
+  (spatial-window--with-target-window
+    (let ((action (spatial-window--state-action spatial-window--state)))
+      (spatial-window--exit-selection-mode)
+      (pcase action
+        ('kill
+         (when (window-live-p win)
+           (delete-window win))
+         (message "Killed window"))
+        ('swap
+         (spatial-window--swap-windows
+          (spatial-window--state-source-window spatial-window--state) win)
+         (select-window win)
+         (message "Swapped windows"))
+        ('focus
+         (spatial-window--save-layout)
+         (select-window win)
+         (let ((ignore-window-parameters t))
+           (delete-other-windows win))
+         (message "Focused window (unfocus to restore)"))
+        (_
+         (select-window win))))))
+
+(defun spatial-window--set-action-kill ()
+  "Switch to kill action."
+  (interactive)
+  (setf (spatial-window--state-action spatial-window--state) 'kill)
+  (message "KILL: select window to kill"))
+
+(defun spatial-window--set-action-swap ()
+  "Switch to swap action, recording current window as source."
+  (interactive)
+  (let ((st spatial-window--state))
+    (setf (spatial-window--state-action st) 'swap
+          (spatial-window--state-source-window st) (selected-window)
+          (spatial-window--state-highlighted-windows st)
+          (list (selected-window)))
+    (when (spatial-window--state-overlays-visible st)
+      (spatial-window--show-overlays (spatial-window--state-highlighted-windows st))))
+  (message "SWAP: select target window"))
+
+(defun spatial-window--set-action-focus ()
+  "Switch to focus action."
+  (interactive)
+  (setf (spatial-window--state-action spatial-window--state) 'focus)
+  (message "FOCUS: select window to focus"))
+
+(defun spatial-window--unfocus-and-exit ()
+  "Unfocus and exit selection mode."
+  (interactive)
+  (spatial-window--exit-selection-mode)
+  (spatial-window-unfocus))
+
+(defun spatial-window--unified-mode-message ()
+  "Return hint message for unified selection mode."
   (let* ((stack (spatial-window--has-saved-layout-p))
-         (unfocus-str
-          (cond
-           ((not stack) "")
-           ((= (length stack) 1) " (u)nfocus[active]")
-           (t (format " (u)nfocus[active:%d]" (length stack))))))
-    (format "(k)ill (K)multi-kill (s)wap (f)ocus%s" unfocus-str)))
+         (unfocus-str (cond
+                       ((not stack) "")
+                       ((= (length stack) 1) " [U]nfocus")
+                       (t (format " [U]nfocus(%d)" (length stack))))))
+    (format "[K]ill [S]wap [F]ocus%s" unfocus-str)))
 
-(defun spatial-window--action-dispatch ()
-  "Dispatch spatial window action via transient keymap."
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "k") #'spatial-window-enter-kill-mode)
-    (define-key map (kbd "K") #'spatial-window-enter-kill-multi-mode)
-    (define-key map (kbd "s") #'spatial-window-enter-swap-mode)
-    (define-key map (kbd "f") #'spatial-window-enter-focus-mode)
-    (define-key map (kbd "u") #'spatial-window-unfocus)
-    (define-key map (kbd "C-g") #'keyboard-quit)
-    (set-transient-map map)
-    (message "%s" (spatial-window--action-menu-message))))
+(defun spatial-window--make-unified-keymap ()
+  "Build unified keymap with layout keys and action modifiers."
+  (let ((map (spatial-window--make-mode-keymap
+              #'spatial-window--act-by-key
+              '(("SPC" . spatial-window--select-minibuffer)))))
+    (define-key map (kbd "K") #'spatial-window--set-action-kill)
+    (define-key map (kbd "S") #'spatial-window--set-action-swap)
+    (define-key map (kbd "F") #'spatial-window--set-action-focus)
+    (define-key map (kbd "U") #'spatial-window--unfocus-and-exit)
+    map))
 
 ;;;###autoload
-(defun spatial-window-select (&optional arg)
+(defun spatial-window-select ()
   "Select a window by pressing a key corresponding to its spatial position.
-Shows keyboard grid overlays for spatial selection.
+Shows keyboard grid overlays on all windows.  Press a lowercase
+layout key to switch to that window immediately.
 
-With prefix ARG (\\[universal-argument]), activate action dispatch:
-  k - Kill: select one window to delete
-  K - Multi-kill: select multiple windows, RET to delete them
-  s - Swap: exchange buffers between windows
-  f - Focus: zoom into a single window, saving the layout
-  u - Unfocus: restore the saved layout (only shown when available)
+Uppercase modifiers change the action before selecting:
+  K - Kill: then press a key to delete that window
+  S - Swap: then press a key to swap buffers with current window
+  F - Focus: then press a key to zoom into that window
+  U - Unfocus: immediately restore the saved layout
 
 When `spatial-window-expert-mode' is non-nil, overlays are hidden by
 default.  Press \\`C-h' to toggle them."
-  (interactive "P")
-  (if arg
-      (spatial-window--action-dispatch)
-    (spatial-window--setup-transient-mode
-     (spatial-window--make-selection-keymap))))
+  (interactive)
+  (spatial-window--setup-transient-mode
+   (spatial-window--make-unified-keymap)
+   nil
+   (spatial-window--unified-mode-message)))
 
 (provide 'spatial-window)
 
