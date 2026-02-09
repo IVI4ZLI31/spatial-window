@@ -689,7 +689,8 @@ Saves layout, selects target, deletes all other windows."
 
 (defun spatial-window--unified-mode-message ()
   "Return hint message for unified selection mode."
-  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s"
+  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s%s"
+          (if (spatial-window--has-saved-layout-p) " [←/→]history" "")
           (spatial-window--history-message-part)))
 
 (defun spatial-window--make-unified-keymap ()
