@@ -158,15 +158,42 @@
       (should (eq selected win1)))))
 
 (ert-deftest spatial-window-test-unified-keymap-has-modifiers ()
-  "Unified keymap contains action modifier keys."
+  "Unified keymap contains action modifier and history navigation keys."
   (let ((map (spatial-window--make-unified-keymap)))
     (should (lookup-key map (kbd "K")))
     (should (lookup-key map (kbd "S")))
     (should (lookup-key map (kbd "F")))
     (should (lookup-key map (kbd "U")))
+    (should (lookup-key map (kbd "<left>")))
+    (should (lookup-key map (kbd "<right>")))
     ;; Layout keys also present
     (should (lookup-key map "q"))
     (should (lookup-key map "a"))))
+
+(ert-deftest spatial-window-test-history-navigation ()
+  "Left/right navigate history non-destructively."
+  (set-frame-parameter nil 'spatial-window-config nil)
+  ;; Push two configs
+  (spatial-window--save-layout 'kill)
+  (spatial-window--save-layout 'swap)
+  (should (= 2 (length (spatial-window--get-history))))
+  (let ((spatial-window--state (spatial-window--make-state)))
+    ;; Navigate back into history
+    (spatial-window--history-back)
+    (should (= 0 (spatial-window--state-history-cursor spatial-window--state)))
+    (should (spatial-window--state-history-live-config spatial-window--state))
+    ;; Go deeper
+    (spatial-window--history-back)
+    (should (= 1 (spatial-window--state-history-cursor spatial-window--state)))
+    ;; Navigate forward
+    (spatial-window--history-forward)
+    (should (= 0 (spatial-window--state-history-cursor spatial-window--state)))
+    ;; Forward to live state
+    (spatial-window--history-forward)
+    (should-not (spatial-window--state-history-cursor spatial-window--state))
+    (should-not (spatial-window--state-history-live-config spatial-window--state))
+    ;; History is not modified by navigation
+    (should (= 2 (length (spatial-window--get-history))))))
 
 (provide 'spatial-window-test)
 
