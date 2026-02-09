@@ -455,46 +455,53 @@ SPC selects minibuffer if active, otherwise passes through."
 
 ;;; Focus/unfocus mode
 
-(defun spatial-window--save-layout (action)
-  "Push the current window configuration onto the layout stack.
-ACTION is a symbol identifying what caused the save (e.g. \\='focus)."
-  (let ((entry (cons action (current-window-configuration))))
-    (if (bound-and-true-p tab-bar-mode)
-        (let* ((tabs (tab-bar-tabs))
-               (ct (tab-bar--current-tab-find tabs)))
-          (push entry (alist-get 'spatial-window-config (cdr ct)))
-          (tab-bar-tabs-set tabs))
-      (set-frame-parameter nil 'spatial-window-config
-                           (cons entry (frame-parameter nil 'spatial-window-config))))))
+(defcustom spatial-window-history-max 20
+  "Maximum number of window configurations to keep in history.
+Oldest entries are evicted when this limit is exceeded."
+  :type 'integer
+  :group 'spatial-window)
 
-(defun spatial-window--restore-layout ()
-  "Pop and restore the most recent window configuration from the stack.
-Each entry is (ACTION . WINDOW-CONFIGURATION).
-Returns the ACTION symbol on success, nil otherwise."
-  (let ((stack (if (bound-and-true-p tab-bar-mode)
-                   (alist-get 'spatial-window-config
-                              (cdr (tab-bar--current-tab-find)))
-                 (frame-parameter nil 'spatial-window-config))))
-    (when stack
-      (let ((entry (car stack))
-            (rest (cdr stack)))
-        (set-window-configuration (cdr entry))
-        (if (bound-and-true-p tab-bar-mode)
-            (let* ((tabs (tab-bar-tabs))
-                   (ct (tab-bar--current-tab-find tabs)))
-              (if rest
-                  (setf (alist-get 'spatial-window-config (cdr ct)) rest)
-                (setf (alist-get 'spatial-window-config (cdr ct) nil 'remove) nil))
-              (tab-bar-tabs-set tabs))
-          (set-frame-parameter nil 'spatial-window-config rest))
-        (car entry)))))
-
-(defun spatial-window--has-saved-layout-p ()
-  "Return non-nil if a saved window configuration exists."
+(defun spatial-window--get-history ()
+  "Return the window configuration history list."
   (if (bound-and-true-p tab-bar-mode)
       (alist-get 'spatial-window-config
                  (cdr (tab-bar--current-tab-find)))
     (frame-parameter nil 'spatial-window-config)))
+
+(defun spatial-window--set-history (history)
+  "Store HISTORY as the window configuration history."
+  (if (bound-and-true-p tab-bar-mode)
+      (let* ((tabs (tab-bar-tabs))
+             (ct (tab-bar--current-tab-find tabs)))
+        (if history
+            (setf (alist-get 'spatial-window-config (cdr ct)) history)
+          (setf (alist-get 'spatial-window-config (cdr ct) nil 'remove) nil))
+        (tab-bar-tabs-set tabs))
+    (set-frame-parameter nil 'spatial-window-config history)))
+
+(defun spatial-window--save-layout (action)
+  "Push current window configuration onto history with ACTION tag.
+Evicts oldest entry when `spatial-window-history-max' is exceeded."
+  (let* ((entry (cons action (current-window-configuration)))
+         (history (cons entry (spatial-window--get-history))))
+    (when (> (length history) spatial-window-history-max)
+      (setcdr (nthcdr (1- spatial-window-history-max) history) nil))
+    (spatial-window--set-history history)))
+
+(defun spatial-window--restore-layout ()
+  "Pop and restore the most recent window configuration.
+Each entry is (ACTION . WINDOW-CONFIGURATION).
+Returns the ACTION symbol on success, nil otherwise."
+  (let ((history (spatial-window--get-history)))
+    (when history
+      (let ((entry (car history)))
+        (set-window-configuration (cdr entry))
+        (spatial-window--set-history (cdr history))
+        (car entry)))))
+
+(defun spatial-window--has-saved-layout-p ()
+  "Return the history list, or nil if empty."
+  (spatial-window--get-history))
 
 (defun spatial-window--focus-by-key ()
   "Focus on the window corresponding to the pressed key.

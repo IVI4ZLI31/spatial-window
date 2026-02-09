@@ -54,6 +54,19 @@
   ;; Pop from empty stack returns nil
   (should-not (spatial-window--restore-layout)))
 
+(ert-deftest spatial-window-test-history-eviction ()
+  "History is capped at `spatial-window-history-max'."
+  (set-frame-parameter nil 'spatial-window-config nil)
+  (let ((spatial-window-history-max 3))
+    (dotimes (i 5)
+      (spatial-window--save-layout (intern (format "act%d" i))))
+    (should (= 3 (length (spatial-window--has-saved-layout-p))))
+    ;; Most recent entries survive (LIFO order)
+    (should (eq 'act4 (spatial-window--restore-layout)))
+    (should (eq 'act3 (spatial-window--restore-layout)))
+    (should (eq 'act2 (spatial-window--restore-layout)))
+    (should-not (spatial-window--restore-layout))))
+
 (ert-deftest spatial-window-test-restore-without-saved-layout ()
   "Restore returns nil when no layout is saved."
   (set-frame-parameter nil 'spatial-window-config nil)
