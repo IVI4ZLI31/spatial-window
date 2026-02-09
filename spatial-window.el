@@ -510,31 +510,65 @@ Saves layout, selects target, deletes all other windows."
   (interactive)
   (spatial-window--with-target-window
     (let ((action (spatial-window--state-action spatial-window--state)))
-      (spatial-window--exit-selection-mode)
       (pcase action
-        ('kill
-         (when (window-live-p win)
-           (delete-window win))
-         (message "Killed window"))
-        ('swap
-         (spatial-window--swap-windows
-          (spatial-window--state-source-window spatial-window--state) win)
-         (select-window win)
-         (message "Swapped windows"))
-        ('focus
-         (spatial-window--save-layout)
-         (select-window win)
-         (let ((ignore-window-parameters t))
-           (delete-other-windows win))
-         (message "Focused window (unfocus to restore)"))
+        ('multi-kill
+         (let ((st spatial-window--state))
+           (if (memq win (spatial-window--state-selected-windows st))
+               (setf (spatial-window--state-selected-windows st)
+                     (delq win (spatial-window--state-selected-windows st)))
+             (push win (spatial-window--state-selected-windows st)))
+           (setf (spatial-window--state-highlighted-windows st)
+                 (spatial-window--state-selected-windows st))
+           (when (spatial-window--state-overlays-visible st)
+             (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
+           (spatial-window--kill-multi-mode-message)))
         (_
-         (select-window win))))))
+         (spatial-window--exit-selection-mode)
+         (pcase action
+           ('kill
+            (when (window-live-p win)
+              (delete-window win))
+            (message "Killed window"))
+           ('swap
+            (spatial-window--swap-windows
+             (spatial-window--state-source-window spatial-window--state) win)
+            (select-window win)
+            (message "Swapped windows"))
+           ('focus
+            (spatial-window--save-layout)
+            (select-window win)
+            (let ((ignore-window-parameters t))
+              (delete-other-windows win))
+            (message "Focused window (unfocus to restore)"))
+           (_
+            (select-window win))))))))
 
 (defun spatial-window--set-action-kill ()
   "Switch to kill action."
   (interactive)
   (setf (spatial-window--state-action spatial-window--state) 'kill)
   (message "KILL: select window to kill"))
+
+(defun spatial-window--set-action-multi-kill ()
+  "Switch to multi-kill action."
+  (interactive)
+  (let ((st spatial-window--state))
+    (setf (spatial-window--state-action st) 'multi-kill
+          (spatial-window--state-selected-windows st) nil))
+  (message "MULTI-KILL: toggle windows, RET to kill"))
+
+(defun spatial-window--execute-multi-kill-unified ()
+  "Execute multi-kill in unified mode."
+  (interactive)
+  (if (not (eq (spatial-window--state-action spatial-window--state) 'multi-kill))
+      (setq unread-command-events
+            (listify-key-sequence (this-command-keys-vector)))
+    (let ((windows-to-kill (spatial-window--state-selected-windows spatial-window--state)))
+      (spatial-window--exit-selection-mode)
+      (dolist (win windows-to-kill)
+        (when (window-live-p win)
+          (delete-window win)))
+      (message "Killed %d window(s)" (length windows-to-kill)))))
 
 (defun spatial-window--set-action-swap ()
   "Switch to swap action, recording current window as source."
@@ -567,14 +601,16 @@ Saves layout, selects target, deletes all other windows."
                        ((not stack) "")
                        ((= (length stack) 1) " [U]nfocus")
                        (t (format " [U]nfocus(%d)" (length stack))))))
-    (format "[K]ill [S]wap [F]ocus%s" unfocus-str)))
+    (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s" unfocus-str)))
 
 (defun spatial-window--make-unified-keymap ()
   "Build unified keymap with layout keys and action modifiers."
   (let ((map (spatial-window--make-mode-keymap
               #'spatial-window--act-by-key
-              '(("SPC" . spatial-window--select-minibuffer)))))
+              '(("SPC" . spatial-window--select-minibuffer)
+                ("RET" . spatial-window--execute-multi-kill-unified)))))
     (define-key map (kbd "K") #'spatial-window--set-action-kill)
+    (define-key map (kbd "M") #'spatial-window--set-action-multi-kill)
     (define-key map (kbd "S") #'spatial-window--set-action-swap)
     (define-key map (kbd "F") #'spatial-window--set-action-focus)
     (define-key map (kbd "U") #'spatial-window--unfocus-and-exit)
@@ -588,6 +624,7 @@ layout key to switch to that window immediately.
 
 Uppercase modifiers change the action before selecting:
   K - Kill: then press a key to delete that window
+  M - Multi-kill: toggle windows to mark, RET to delete them all
   S - Swap: then press a key to swap buffers with current window
   F - Focus: then press a key to zoom into that window
   U - Unfocus: immediately restore the saved layout
