@@ -39,17 +39,17 @@
   (set-frame-parameter nil 'spatial-window-config nil)
   (should-not (spatial-window--has-saved-layout-p))
   ;; Push first layout
-  (spatial-window--save-layout)
+  (spatial-window--save-layout 'focus)
   (should (spatial-window--has-saved-layout-p))
   (should (= 1 (length (spatial-window--has-saved-layout-p))))
   ;; Push second layout (nested focus)
-  (spatial-window--save-layout)
+  (spatial-window--save-layout 'kill)
   (should (= 2 (length (spatial-window--has-saved-layout-p))))
-  ;; Pop one level
-  (should (spatial-window--restore-layout))
+  ;; Pop one level — returns the action symbol
+  (should (eq 'kill (spatial-window--restore-layout)))
   (should (= 1 (length (spatial-window--has-saved-layout-p))))
   ;; Pop last level
-  (should (spatial-window--restore-layout))
+  (should (eq 'focus (spatial-window--restore-layout)))
   (should-not (spatial-window--has-saved-layout-p))
   ;; Pop from empty stack returns nil
   (should-not (spatial-window--restore-layout)))
@@ -71,7 +71,7 @@
     (cl-letf (((symbol-function 'this-command-keys)
                (lambda () "q"))
               ((symbol-function 'spatial-window--save-layout)
-               (lambda () (setq saved-config t)))
+               (lambda (action) (setq saved-config action)))
               ((symbol-function 'select-window)
                (lambda (win) (setq selected-win win)))
               ((symbol-function 'delete-other-windows)
@@ -79,7 +79,7 @@
               ((symbol-function 'spatial-window--remove-overlays)
                #'ignore))
       (spatial-window--focus-by-key)
-      (should saved-config)
+      (should (eq saved-config 'focus))
       (should (eq selected-win win1))
       (should (eq deleted-others win1)))))
 

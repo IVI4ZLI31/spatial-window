@@ -346,6 +346,7 @@ SPC selects minibuffer if active, otherwise passes through."
   (spatial-window--with-target-window
     (spatial-window--exit-selection-mode)
     (when (window-live-p win)
+      (spatial-window--save-layout 'kill)
       (delete-window win))
     (message "Killed window")))
 
@@ -386,9 +387,11 @@ SPC selects minibuffer if active, otherwise passes through."
   (let ((windows-to-kill (spatial-window--state-selected-windows spatial-window--state)))
     (spatial-window--remove-overlays)
     (spatial-window--reset-state)
-    (dolist (win windows-to-kill)
-      (when (window-live-p win)
-        (delete-window win)))
+    (when windows-to-kill
+      (spatial-window--save-layout 'kill)
+      (dolist (win windows-to-kill)
+        (when (window-live-p win)
+          (delete-window win))))
     (message "Killed %d window(s)" (length windows-to-kill))))
 
 (defun spatial-window-enter-kill-multi-mode ()
@@ -437,27 +440,30 @@ SPC selects minibuffer if active, otherwise passes through."
 
 ;;; Focus/unfocus mode
 
-(defun spatial-window--save-layout ()
-  "Push the current window configuration onto the layout stack."
-  (let ((config (current-window-configuration)))
+(defun spatial-window--save-layout (action)
+  "Push the current window configuration onto the layout stack.
+ACTION is a symbol identifying what caused the save (e.g. \\='focus)."
+  (let ((entry (cons action (current-window-configuration))))
     (if (bound-and-true-p tab-bar-mode)
         (let* ((tabs (tab-bar-tabs))
                (ct (tab-bar--current-tab-find tabs)))
-          (push config (alist-get 'spatial-window-config (cdr ct)))
+          (push entry (alist-get 'spatial-window-config (cdr ct)))
           (tab-bar-tabs-set tabs))
       (set-frame-parameter nil 'spatial-window-config
-                           (cons config (frame-parameter nil 'spatial-window-config))))))
+                           (cons entry (frame-parameter nil 'spatial-window-config))))))
 
 (defun spatial-window--restore-layout ()
   "Pop and restore the most recent window configuration from the stack.
-Returns non-nil on success."
+Each entry is (ACTION . WINDOW-CONFIGURATION).
+Returns the ACTION symbol on success, nil otherwise."
   (let ((stack (if (bound-and-true-p tab-bar-mode)
                    (alist-get 'spatial-window-config
                               (cdr (tab-bar--current-tab-find)))
                  (frame-parameter nil 'spatial-window-config))))
     (when stack
-      (set-window-configuration (car stack))
-      (let ((rest (cdr stack)))
+      (let ((entry (car stack))
+            (rest (cdr stack)))
+        (set-window-configuration (cdr entry))
         (if (bound-and-true-p tab-bar-mode)
             (let* ((tabs (tab-bar-tabs))
                    (ct (tab-bar--current-tab-find tabs)))
@@ -465,8 +471,8 @@ Returns non-nil on success."
                   (setf (alist-get 'spatial-window-config (cdr ct)) rest)
                 (setf (alist-get 'spatial-window-config (cdr ct) nil 'remove) nil))
               (tab-bar-tabs-set tabs))
-          (set-frame-parameter nil 'spatial-window-config rest)))
-      t)))
+          (set-frame-parameter nil 'spatial-window-config rest))
+        (car entry)))))
 
 (defun spatial-window--has-saved-layout-p ()
   "Return non-nil if a saved window configuration exists."
@@ -481,7 +487,7 @@ Saves layout, selects target, deletes all other windows."
   (interactive)
   (spatial-window--with-target-window
     (spatial-window--exit-selection-mode)
-    (spatial-window--save-layout)
+    (spatial-window--save-layout 'focus)
     (select-window win)
     (let ((ignore-window-parameters t))
       (delete-other-windows win))
@@ -527,6 +533,7 @@ Saves layout, selects target, deletes all other windows."
          (pcase action
            ('kill
             (when (window-live-p win)
+              (spatial-window--save-layout 'kill)
               (delete-window win))
             (message "Killed window"))
            ('swap
@@ -535,7 +542,7 @@ Saves layout, selects target, deletes all other windows."
             (select-window win)
             (message "Swapped windows"))
            ('focus
-            (spatial-window--save-layout)
+            (spatial-window--save-layout 'focus)
             (select-window win)
             (let ((ignore-window-parameters t))
               (delete-other-windows win))
@@ -565,9 +572,11 @@ Saves layout, selects target, deletes all other windows."
             (listify-key-sequence (this-command-keys-vector)))
     (let ((windows-to-kill (spatial-window--state-selected-windows spatial-window--state)))
       (spatial-window--exit-selection-mode)
-      (dolist (win windows-to-kill)
-        (when (window-live-p win)
-          (delete-window win)))
+      (when windows-to-kill
+        (spatial-window--save-layout 'kill)
+        (dolist (win windows-to-kill)
+          (when (window-live-p win)
+            (delete-window win))))
       (message "Killed %d window(s)" (length windows-to-kill)))))
 
 (defun spatial-window--set-action-swap ()
