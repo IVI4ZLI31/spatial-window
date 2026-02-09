@@ -105,11 +105,13 @@ Can be a symbol naming a preset layout or a custom list of rows."
                  (repeat :tag "Custom" (repeat string)))
   :group 'spatial-window)
 
-(defcustom spatial-window-expert-mode nil
-  "When non-nil, hide window overlays by default.
-This can improve responsiveness on configurations where posframe is slow.
-Use \\`C-h' during selection to toggle overlay visibility."
-  :type 'boolean
+(defcustom spatial-window-overlay-delay nil
+  "Seconds to wait before showing overlays, or nil for immediate display.
+When set, overlays start hidden and appear after the delay.  If you
+know your target window you can act before they render; if you
+hesitate they appear automatically."
+  :type '(choice (const :tag "Immediate" nil)
+                 (number :tag "Delay (seconds)"))
   :group 'spatial-window)
 
 (defun spatial-window--get-layout ()
@@ -145,7 +147,8 @@ Returns alist of (extension-key . base-key)."
   overlays-visible
   selection-active
   action
-  undo-count)
+  undo-count
+  overlay-timer)
 
 (defvar spatial-window--state (spatial-window--make-state)
   "Active session state for spatial-window.")
@@ -268,12 +271,11 @@ If no target window found (ambiguous key), do nothing."
   "Reset all state variables for action modes."
   (setq spatial-window--state (spatial-window--make-state)))
 
-(defun spatial-window--show-hints ()
-  "Show window overlays if not already visible.
-Once shown, overlays remain until selection mode exits."
-  (interactive)
+(defun spatial-window--show-delayed-overlays ()
+  "Timer callback to show overlays after delay."
   (let ((st spatial-window--state))
-    (unless (spatial-window--state-overlays-visible st)
+    (when (and (spatial-window--state-selection-active st)
+               (not (spatial-window--state-overlays-visible st)))
       (spatial-window--show-overlays (spatial-window--state-highlighted-windows st))
       (setf (spatial-window--state-overlays-visible st) t))))
 
@@ -288,14 +290,17 @@ Once shown, overlays remain until selection mode exits."
           (listify-key-sequence (this-command-keys-vector)))))
 
 (defun spatial-window--cleanup-mode ()
-  "Clean up overlays and reset state after any mode ends."
+  "Clean up overlays, cancel timers, and reset state after any mode ends."
+  (let ((timer (spatial-window--state-overlay-timer spatial-window--state)))
+    (when (timerp timer)
+      (cancel-timer timer)))
   (spatial-window--remove-overlays)
   (spatial-window--reset-state))
 
 (defun spatial-window--make-mode-keymap (key-action &optional extra-bindings)
   "Create keymap binding all layout keys to KEY-ACTION.
 EXTRA-BINDINGS is an alist of (key-string . command) for additional bindings.
-\\`C-g' aborts.  In expert mode, \\`C-h' shows hint overlays."
+\\`C-g' aborts."
   (let ((map (make-sparse-keymap)))
     (dolist (row (spatial-window--get-layout))
       (dolist (key row)
@@ -303,8 +308,6 @@ EXTRA-BINDINGS is an alist of (key-string . command) for additional bindings.
     (dolist (ext (spatial-window--get-extensions))
       (define-key map (kbd (car ext)) key-action))
     (define-key map (kbd "C-g") #'spatial-window--abort)
-    (when spatial-window-expert-mode
-      (define-key map (kbd "C-h") #'spatial-window--show-hints))
     (dolist (binding extra-bindings)
       (define-key map (kbd (car binding)) (cdr binding)))
     map))
@@ -319,8 +322,12 @@ MESSAGE is displayed in the minibuffer."
           (spatial-window--state-highlighted-windows st) highlighted)
     (when (spatial-window--state-assignments st)
       (setf (spatial-window--state-selection-active st) t)
-      (if spatial-window-expert-mode
-          (setf (spatial-window--state-overlays-visible st) nil)
+      (if spatial-window-overlay-delay
+          (progn
+            (setf (spatial-window--state-overlays-visible st) nil)
+            (setf (spatial-window--state-overlay-timer st)
+                  (run-at-time spatial-window-overlay-delay nil
+                               #'spatial-window--show-delayed-overlays)))
         (spatial-window--show-overlays highlighted)
         (setf (spatial-window--state-overlays-visible st) t))
       (when message (message "%s" message))
@@ -656,8 +663,8 @@ Uppercase modifiers change the action before selecting:
   F - Focus: then press a key to zoom into that window
   U - Undo: cycle back through saved window configurations
 
-When `spatial-window-expert-mode' is non-nil, overlays are hidden by
-default.  Press \\`C-h' to toggle them."
+When `spatial-window-overlay-delay' is set, overlays appear after
+the configured delay instead of immediately."
   (interactive)
   (spatial-window--setup-transient-mode
    (spatial-window--make-unified-keymap)
