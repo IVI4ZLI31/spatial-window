@@ -144,7 +144,8 @@ Returns alist of (extension-key . base-key)."
   source-window
   overlays-visible
   selection-active
-  action)
+  action
+  undo-count)
 
 (defvar spatial-window--state (spatial-window--make-state)
   "Active session state for spatial-window.")
@@ -425,6 +426,7 @@ SPC selects minibuffer if active, otherwise passes through."
   (interactive)
   (spatial-window--with-target-window
     (spatial-window--exit-selection-mode)
+    (spatial-window--save-layout 'swap)
     (spatial-window--swap-windows (spatial-window--state-source-window spatial-window--state) win)
     (select-window win)
     (message "Swapped windows")))
@@ -491,7 +493,7 @@ Saves layout, selects target, deletes all other windows."
     (select-window win)
     (let ((ignore-window-parameters t))
       (delete-other-windows win))
-    (message "Focused window (unfocus to restore)")))
+    (message "Focused window")))
 
 (defun spatial-window-enter-focus-mode ()
   "Enter focus mode for zooming into a single window."
@@ -537,6 +539,7 @@ Saves layout, selects target, deletes all other windows."
               (delete-window win))
             (message "Killed window"))
            ('swap
+            (spatial-window--save-layout 'swap)
             (spatial-window--swap-windows
              (spatial-window--state-source-window spatial-window--state) win)
             (select-window win)
@@ -597,20 +600,35 @@ Saves layout, selects target, deletes all other windows."
   (setf (spatial-window--state-action spatial-window--state) 'focus)
   (message "FOCUS: select window to focus"))
 
-(defun spatial-window--unfocus-and-exit ()
-  "Unfocus and exit selection mode."
+(defun spatial-window--undo ()
+  "Undo the most recent window configuration change.
+Stays in selection mode with updated overlays for further actions."
   (interactive)
-  (spatial-window--exit-selection-mode)
-  (spatial-window-unfocus))
+  (let ((st spatial-window--state)
+        (action (spatial-window--restore-layout)))
+    (if (not action)
+        (progn (beep) (message "Nothing to undo"))
+      (setf (spatial-window--state-undo-count st)
+            (1+ (or (spatial-window--state-undo-count st) 0)))
+      ;; Recompute assignments for restored window layout
+      (setf (spatial-window--state-assignments st) (spatial-window--assign-keys))
+      (when (spatial-window--state-overlays-visible st)
+        (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
+      (message "%s" (spatial-window--unified-mode-message)))))
+
+(defun spatial-window--undo-message-part ()
+  "Return undo portion of mode message, or empty string if no history."
+  (let ((stack (spatial-window--has-saved-layout-p)))
+    (if (not stack) ""
+      (let* ((done (or (spatial-window--state-undo-count spatial-window--state) 0))
+             (total (+ done (length stack)))
+             (action (car (car stack))))
+        (format " (U)ndo %s (%d/%d)" action done total)))))
 
 (defun spatial-window--unified-mode-message ()
   "Return hint message for unified selection mode."
-  (let* ((stack (spatial-window--has-saved-layout-p))
-         (unfocus-str (cond
-                       ((not stack) "")
-                       ((= (length stack) 1) " [U]nfocus")
-                       (t (format " [U]nfocus(%d)" (length stack))))))
-    (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s" unfocus-str)))
+  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s"
+          (spatial-window--undo-message-part)))
 
 (defun spatial-window--make-unified-keymap ()
   "Build unified keymap with layout keys and action modifiers."
@@ -622,13 +640,13 @@ Saves layout, selects target, deletes all other windows."
     (define-key map (kbd "M") #'spatial-window--set-action-multi-kill)
     (define-key map (kbd "S") #'spatial-window--set-action-swap)
     (define-key map (kbd "F") #'spatial-window--set-action-focus)
-    (define-key map (kbd "U") #'spatial-window--unfocus-and-exit)
+    (define-key map (kbd "U") #'spatial-window--undo)
     map))
 
 ;;;###autoload
 (defun spatial-window-select ()
   "Select a window by pressing a key corresponding to its spatial position.
-Shows keyboard grid overlays on all windows.  Press a lowercase
+
 layout key to switch to that window immediately.
 
 Uppercase modifiers change the action before selecting:
@@ -636,7 +654,7 @@ Uppercase modifiers change the action before selecting:
   M - Multi-kill: toggle windows to mark, RET to delete them all
   S - Swap: then press a key to swap buffers with current window
   F - Focus: then press a key to zoom into that window
-  U - Unfocus: immediately restore the saved layout
+  U - Undo: cycle back through saved window configurations
 
 When `spatial-window-expert-mode' is non-nil, overlays are hidden by
 default.  Press \\`C-h' to toggle them."
