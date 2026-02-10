@@ -63,6 +63,9 @@ The prompt shows what each direction will do, e.g. `[←] Undo kill [→] Redo s
 
 Press `C-g` while browsing to cancel and return to your original layout.
 
+History is kept per-tab when `tab-bar-mode` is active, otherwise per-frame. Up to
+`spatial-window-history-max` entries are retained (default 20).
+
 ### Edge Extension Keys
 
 The number row and keys adjacent to the right edge of the layout act as
