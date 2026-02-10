@@ -4,7 +4,7 @@
 
 ;; Author: Le Wang <lewang.dev.26@gmail.com>
 ;; URL: https://github.com/lewang/spatial-window
-;; Version: 0.9.2
+;; Version: 0.9.3
 ;; Package-Requires: ((emacs "28.1") (posframe "1.0.0"))
 ;; Keywords: convenience, windows
 
