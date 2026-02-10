@@ -340,8 +340,8 @@ MESSAGE is displayed in the minibuffer."
                 (spatial-window--state-selection-active spatial-window--state))))
        #'spatial-window--cleanup-mode))))
 
-(defun spatial-window--kill-multi-mode-message ()
-  "Display kill-multi mode status message."
+(defun spatial-window--kill-mode-message ()
+  "Display kill mode status message."
   (let ((n (length (spatial-window--state-selected-windows spatial-window--state))))
     (message "RET to kill %d window%s. C-g to abort."
              n (if (= n 1) "" "s"))))
@@ -424,7 +424,7 @@ Returns the ACTION symbol on success, nil otherwise."
   (spatial-window--with-target-window
     (let ((action (spatial-window--state-action spatial-window--state)))
       (pcase action
-        ('multi-kill
+        ('kill
          (let ((st spatial-window--state))
            (if (memq win (spatial-window--state-selected-windows st))
                (setf (spatial-window--state-selected-windows st)
@@ -434,15 +434,10 @@ Returns the ACTION symbol on success, nil otherwise."
                  (spatial-window--state-selected-windows st))
            (when (spatial-window--state-overlays-visible st)
              (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
-           (spatial-window--kill-multi-mode-message)))
+           (spatial-window--kill-mode-message)))
         (_
          (spatial-window--exit-selection-mode)
          (pcase action
-           ('kill
-            (when (window-live-p win)
-              (spatial-window--save-layout 'kill)
-              (delete-window win))
-            (message "Killed window"))
            ('swap
             (spatial-window--save-layout 'swap)
             (spatial-window--swap-windows
@@ -459,23 +454,17 @@ Returns the ACTION symbol on success, nil otherwise."
             (select-window win))))))))
 
 (defun spatial-window--set-action-kill ()
-  "Switch to kill action."
-  (interactive)
-  (setf (spatial-window--state-action spatial-window--state) 'kill)
-  (message "KILL: select window to kill"))
-
-(defun spatial-window--set-action-multi-kill ()
-  "Switch to multi-kill action."
+  "Switch to kill action with toggle selection."
   (interactive)
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-action st) 'multi-kill
+    (setf (spatial-window--state-action st) 'kill
           (spatial-window--state-selected-windows st) nil))
-  (message "MULTI-KILL: toggle windows, RET to kill"))
+  (message "KILL: toggle windows, RET to delete"))
 
-(defun spatial-window--execute-multi-kill-unified ()
-  "Execute multi-kill in unified mode."
+(defun spatial-window--execute-kill ()
+  "Execute kill in unified mode."
   (interactive)
-  (if (not (eq (spatial-window--state-action spatial-window--state) 'multi-kill))
+  (if (not (eq (spatial-window--state-action spatial-window--state) 'kill))
       (spatial-window--exit-selection-mode)
     (let ((windows-to-kill (spatial-window--state-selected-windows spatial-window--state)))
       (spatial-window--exit-selection-mode)
@@ -583,7 +572,7 @@ While browsing: shows available directions and position."
 
 (defun spatial-window--unified-mode-message ()
   "Return hint message for unified selection mode."
-  (format "Select window or: [K]ill [M]ulti-kill [S]wap [F]ocus [RET]done%s"
+  (format "Select window or: [K]ill [S]wap [F]ocus [RET]done%s"
           (spatial-window--history-message-part)))
 
 (defun spatial-window--make-unified-keymap ()
@@ -591,9 +580,8 @@ While browsing: shows available directions and position."
   (let ((map (spatial-window--make-mode-keymap
               #'spatial-window--act-by-key
               '(("SPC" . spatial-window--select-minibuffer)
-                ("RET" . spatial-window--execute-multi-kill-unified)))))
+                ("RET" . spatial-window--execute-kill)))))
     (define-key map (kbd "K") #'spatial-window--set-action-kill)
-    (define-key map (kbd "M") #'spatial-window--set-action-multi-kill)
     (define-key map (kbd "S") #'spatial-window--set-action-swap)
     (define-key map (kbd "F") #'spatial-window--set-action-focus)
     (define-key map (kbd "<left>") #'spatial-window--history-back)
@@ -607,14 +595,13 @@ While browsing: shows available directions and position."
 Press a layout key to switch to that window immediately.
 
 Uppercase modifiers change the action before selecting:
-  K - Kill: delete a window
-  M - Multi-kill: toggle windows on/off, RET to delete all selected
+  K - Kill: toggle windows on/off, RET to delete all selected
   S - Swap: swap buffers with current window
   F - Focus: zoom into a window (delete others)
 
 Other keys:
   Left/Right - Browse window configuration history
-  RET - Exit selection (execute kills in multi-kill mode)
+  RET - Exit selection (execute kills in kill mode)
   SPC - Select minibuffer window (if active), otherwise exit
   C-g - Abort (restores layout if browsing history)
 

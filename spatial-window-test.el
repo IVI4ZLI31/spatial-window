@@ -76,23 +76,23 @@
 ;;; Unified action mode tests
 
 (ert-deftest spatial-window-test-act-by-key-kill ()
-  "Unified act-by-key dispatches kill action correctly."
+  "Kill action toggles window selection without immediately deleting."
   (let* ((win1 (selected-window))
-         (deleted nil)
          (spatial-window--state
           (spatial-window--make-state
            :assignments `((,win1 . ("q" "w" "e")))
-           :action 'kill)))
+           :action 'kill
+           :overlays-visible t)))
     (cl-letf (((symbol-function 'this-command-keys)
                (lambda () "q"))
-              ((symbol-function 'window-live-p)
-               (lambda (_w) t))
-              ((symbol-function 'delete-window)
-               (lambda (w) (setq deleted w)))
-              ((symbol-function 'spatial-window--remove-overlays)
+              ((symbol-function 'spatial-window--show-overlays)
                #'ignore))
+      ;; First press adds window to selection
       (spatial-window--act-by-key)
-      (should (eq deleted win1)))))
+      (should (memq win1 (spatial-window--state-selected-windows spatial-window--state)))
+      ;; Second press removes it
+      (spatial-window--act-by-key)
+      (should-not (memq win1 (spatial-window--state-selected-windows spatial-window--state))))))
 
 (ert-deftest spatial-window-test-act-by-key-select ()
   "Unified act-by-key defaults to window selection."

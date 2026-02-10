@@ -42,8 +42,7 @@ During selection, uppercase keys switch the action mode before you select a wind
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `K` | Kill | Press a layout key to delete that window |
-| `M` | Multi-kill | Toggle windows on/off, `RET` to delete all selected |
+| `K` | Kill | Toggle windows on/off, `RET` to delete all selected |
 | `S` | Swap | Press a layout key to swap buffers with current window |
 | `F` | Focus | Press a layout key to zoom into that window (delete others) |
 
