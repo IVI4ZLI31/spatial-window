@@ -599,7 +599,7 @@ While browsing: shows available directions and position."
 
 (defun spatial-window--unified-mode-message ()
   "Return hint message for unified selection mode."
-  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s"
+  (format "Select window or: [K]ill [M]ulti-kill [S]wap [F]ocus%s"
           (spatial-window--history-message-part)))
 
 (defun spatial-window--make-unified-keymap ()
