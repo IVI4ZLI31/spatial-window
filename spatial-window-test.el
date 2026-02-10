@@ -194,6 +194,47 @@
     ;; History is not modified by navigation
     (should (= 2 (length (spatial-window--get-history))))))
 
+;;; History message tests
+
+(ert-deftest spatial-window-test-history-message-no-history ()
+  "No history produces empty message part."
+  (set-frame-parameter nil 'spatial-window-config nil)
+  (let ((spatial-window--state (spatial-window--make-state)))
+    (should (string= "" (spatial-window--history-message-part)))))
+
+(ert-deftest spatial-window-test-history-message-at-live ()
+  "At live state with history shows left undo hint."
+  (set-frame-parameter nil 'spatial-window-config
+                       '((kill . fake-config)))
+  (let ((spatial-window--state (spatial-window--make-state)))
+    (should (string= " ← Undo kill" (spatial-window--history-message-part)))))
+
+(ert-deftest spatial-window-test-history-message-browsing-newest ()
+  "At cursor=0 shows undo left, redo right, and position."
+  (set-frame-parameter nil 'spatial-window-config
+                       '((swap . fake1) (kill . fake2)))
+  (let ((spatial-window--state (spatial-window--make-state
+                                :history-cursor 0)))
+    (should (string= " ← Undo kill → Redo swap <1/2>"
+                      (spatial-window--history-message-part)))))
+
+(ert-deftest spatial-window-test-history-message-browsing-oldest ()
+  "At oldest entry shows only redo right and position."
+  (set-frame-parameter nil 'spatial-window-config
+                       '((swap . fake1) (kill . fake2)))
+  (let ((spatial-window--state (spatial-window--make-state
+                                :history-cursor 1)))
+    (should (string= " → Redo kill <2/2>"
+                      (spatial-window--history-message-part)))))
+
+(ert-deftest spatial-window-test-unified-message-includes-history ()
+  "Unified message includes action modifiers and history hint."
+  (set-frame-parameter nil 'spatial-window-config
+                       '((focus . fake)))
+  (let ((spatial-window--state (spatial-window--make-state)))
+    (should (string-match "\\[K\\]ill.*← Undo focus"
+                          (spatial-window--unified-mode-message)))))
+
 (provide 'spatial-window-test)
 
 ;;; spatial-window-test.el ends here
