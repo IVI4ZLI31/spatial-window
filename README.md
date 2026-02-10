@@ -42,9 +42,9 @@ During selection, uppercase keys switch the action mode before you select a wind
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `K` | Kill | Toggle windows on/off, `RET` to delete all selected |
+| `K` | Kill | Current window pre-selected; toggle more, `RET` to delete |
 | `S` | Swap | Press a layout key to swap buffers with current window |
-| `F` | Focus | Press a layout key to zoom into that window (delete others) |
+| `F` | Focus | Current window highlighted; `RET` to focus, or select another |
 
 After focusing, call `spatial-window-unfocus` to restore the previous layout.
 
