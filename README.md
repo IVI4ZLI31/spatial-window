@@ -6,7 +6,7 @@ Jump to Emacs windows by pressing keys that match their spatial position on your
 
 ## Installation
 
-Requires Emacs 27.1+ and [posframe](https://github.com/tumashu/posframe).
+Requires Emacs 28.1+ and [posframe](https://github.com/tumashu/posframe).
 
 ### Elpaca
 
@@ -36,20 +36,32 @@ that window.
 +------------------+------------------+
 ```
 
-### Prefix Actions
+### Action Modifiers
 
-With `C-u` prefix, you can kill or swap windows:
+While the overlay is showing, uppercase keys switch the action mode before you select a window:
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `k` | Kill | Select one window to delete |
-| `K` | Multi-kill | Select multiple windows, `RET` to delete all |
-| `s` | Swap | Exchange buffers between two windows |
+| `K` | Kill | Press a layout key to delete that window |
+| `M` | Multi-kill | Toggle windows on/off, `RET` to delete all selected |
+| `S` | Swap | Press a layout key to swap buffers with current window |
+| `F` | Focus | Press a layout key to zoom into that window (delete others) |
 
-Examples:
-- `C-u M-o k` then press a key to kill that window
-- `C-u M-o K` then press keys to toggle selection, `RET` to kill selected
-- `C-u M-o s` swaps immediately if 2 windows, otherwise select target
+After focusing, call `spatial-window-unfocus` to restore the previous layout.
+
+### History Navigation
+
+Actions that modify window layout (kill, swap, focus) automatically save the previous configuration. While
+the overlay is showing, use arrow keys to browse history:
+
+| Key | Action |
+|-----|--------|
+| `←` | Undo — restore an older window configuration |
+| `→` | Redo — return toward the current configuration |
+
+The prompt shows what each direction will do, e.g. `[←] Undo kill [→] Redo swap <1/2>`.
+
+Press `C-g` while browsing to cancel and return to your original layout.
 
 ### Edge Extension Keys
 
@@ -92,15 +104,14 @@ Or define a custom layout:
                           ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
 ```
 
-### Expert Mode
+### Overlay Delay
 
-If posframe rendering is slow on your configuration, enable expert mode to hide overlays by default:
+If you know your target window immediately, you can act before overlays render. Set a delay so overlays only
+appear if you hesitate:
 
 ```elisp
-(customize-set-variable 'spatial-window-expert-mode t)
+(customize-set-variable 'spatial-window-overlay-delay 0.3) ;; seconds, or nil for immediate
 ```
-
-In expert mode, press `C-h` during selection to toggle overlay visibility.
 
 ## Alternatives
 
