@@ -48,7 +48,6 @@ During selection, the current window is highlighted. Uppercase keys switch the a
 
 `RET` always confirms: in kill/focus it acts on the current selection, otherwise it exits.
 
-After focusing, call `spatial-window-unfocus` to restore the previous layout.
 
 ### History Navigation
 
