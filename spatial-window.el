@@ -462,7 +462,9 @@ Returns the ACTION symbol on success, nil otherwise."
             (select-window win))))))))
 
 (defun spatial-window--set-action-kill ()
-  "Switch to kill action with current window pre-selected."
+  "Switch to kill action with current window soft-pre-selected.
+The pre-selection is replaced if the first key press picks a
+different window, avoiding an extra deselect step."
   (interactive)
   (let ((st spatial-window--state))
     (setf (spatial-window--state-action st) 'kill
@@ -621,11 +623,14 @@ While browsing: shows available directions and position."
 
 Press a layout key to switch to that window immediately.
 
-The current window is highlighted on entry.  Uppercase modifiers
-change the action before selecting:
-  K - Kill: current window pre-selected, toggle more, RET to delete
+The current window is always highlighted on entry so you can see
+where you are.  Uppercase modifiers change the action:
+  K - Kill: current window pre-selected for deletion.  Press RET
+      to kill it immediately, or select a different window to
+      replace the pre-selection.  Toggle additional windows to
+      build a multi-kill set, then RET to delete all.
   S - Swap: swap buffers with current window
-  F - Focus: RET to focus current window, or select another
+  F - Focus: press RET to focus current window, or select another
 
 Other keys:
   Left/Right - Browse window configuration history

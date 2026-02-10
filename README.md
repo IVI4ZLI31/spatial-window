@@ -38,13 +38,19 @@ that window.
 
 ### Action Modifiers
 
-During selection, uppercase keys switch the action mode before you select a window:
+During selection, the current window is highlighted. Uppercase keys switch the action mode:
 
 | Key | Action | Description |
 |-----|--------|-------------|
-| `K` | Kill | Current window pre-selected; toggle more, `RET` to delete |
+| `K` | Kill | Current window pre-selected; `RET` to delete, or pick another |
 | `S` | Swap | Press a layout key to swap buffers with current window |
 | `F` | Focus | Current window highlighted; `RET` to focus, or select another |
+
+`RET` always confirms: in kill/focus it acts on the current selection, otherwise it exits.
+
+Kill mode pre-selects the current window so `K` `RET` is a quick single-window kill. Selecting a different window
+replaces the pre-selection automatically — you don't need to deselect the original first. After that first pick,
+further presses toggle windows on/off to build a multi-kill set.
 
 After focusing, call `spatial-window-unfocus` to restore the previous layout.
 
