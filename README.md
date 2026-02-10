@@ -66,6 +66,10 @@ Press `C-g` while browsing to cancel and return to your original layout.
 History is kept per-tab when `tab-bar-mode` is active, otherwise per-frame. Up to
 `spatial-window-history-max` entries are retained (default 20).
 
+Unlike `winner-mode`, spatial-window does not listen to hooks or track every window change globally. Only
+actions performed through spatial-window (kill, swap, focus) save history, so undo/redo is predictable —
+you're reversing your own deliberate actions, not unrelated side effects from other packages or commands.
+
 ### Edge Extension Keys
 
 The number row and keys adjacent to the right edge of the layout act as
