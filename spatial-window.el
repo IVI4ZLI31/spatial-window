@@ -178,7 +178,6 @@ If SELECTED-P, use selected face with border."
 Reads assignments from state (must be set by caller).
 If SELECTED-WINDOWS is non-nil, highlight those windows with a border.
 Returns non-nil if overlays were shown, nil if no assignments."
-  (require 'posframe)
   ;; Clean up any existing posframes first
   (spatial-window--remove-overlays)
   (let* ((st spatial-window--state)
@@ -319,6 +318,7 @@ EXTRA-BINDINGS is an alist of (key-string . command) for additional bindings.
 KEYMAP is the transient keymap to activate.
 HIGHLIGHTED is a list of windows to highlight in overlays.
 MESSAGE is displayed in the minibuffer."
+  (require 'posframe)
   (let ((st spatial-window--state))
     (setf (spatial-window--state-assignments st) (spatial-window--assign-keys)
           (spatial-window--state-highlighted-windows st) highlighted)
