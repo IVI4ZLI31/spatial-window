@@ -679,18 +679,34 @@ Saves layout, selects target, deletes all other windows."
         (spatial-window--history-refresh))))))
 
 (defun spatial-window--history-message-part ()
-  "Return history browsing position, or empty string if not browsing."
-  (let ((cursor (spatial-window--state-history-cursor spatial-window--state)))
-    (if (null cursor) ""
-      (let* ((history (spatial-window--get-history))
-             (entry (nth cursor history)))
-        (format " <%s %d/%d>"
-                (car entry) (1+ cursor) (length history))))))
+  "Return history navigation hint showing available directions.
+At live state: shows left arrow with next undo action.
+While browsing: shows available directions and position."
+  (let* ((cursor (spatial-window--state-history-cursor spatial-window--state))
+         (history (spatial-window--get-history))
+         (len (length history)))
+    (cond
+     ;; No history at all
+     ((null history) "")
+     ;; At live state (not browsing): can only go left
+     ((null cursor)
+      (format " ← Undo %s" (car (car history))))
+     ;; Browsing: show available directions + position
+     (t
+      (let* ((at-oldest (>= (1+ cursor) len))
+             (left-part (unless at-oldest
+                          (format "← Undo %s " (car (nth (1+ cursor) history)))))
+             (right-part (if (= cursor 0)
+                             "→ live"
+                           (format "→ %s" (car (nth (1- cursor) history))))))
+        (format " %s%s <%d/%d>"
+                (or left-part "")
+                right-part
+                (1+ cursor) len))))))
 
 (defun spatial-window--unified-mode-message ()
   "Return hint message for unified selection mode."
-  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s%s"
-          (if (spatial-window--has-saved-layout-p) " [←/→]history" "")
+  (format "[K]ill [M]ulti-kill [S]wap [F]ocus%s"
           (spatial-window--history-message-part)))
 
 (defun spatial-window--make-unified-keymap ()
