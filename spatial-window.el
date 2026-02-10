@@ -149,7 +149,8 @@ Returns alist of (extension-key . base-key)."
   action
   overlay-timer
   history-cursor
-  history-live-config)
+  history-live-config
+  kill-soft-select)
 
 (defvar spatial-window--state (spatial-window--make-state)
   "Active session state for spatial-window.")
@@ -425,7 +426,14 @@ Returns the ACTION symbol on success, nil otherwise."
     (let ((action (spatial-window--state-action spatial-window--state)))
       (pcase action
         ('kill
-         (let ((st spatial-window--state))
+         (let* ((st spatial-window--state)
+                (soft (spatial-window--state-kill-soft-select st)))
+           ;; First press on a different window replaces the soft pre-selection
+           (when (and soft (not (eq win soft)))
+             (setf (spatial-window--state-selected-windows st)
+                   (delq soft (spatial-window--state-selected-windows st))))
+           (when soft
+             (setf (spatial-window--state-kill-soft-select st) nil))
            (if (memq win (spatial-window--state-selected-windows st))
                (setf (spatial-window--state-selected-windows st)
                      (delq win (spatial-window--state-selected-windows st)))
@@ -459,7 +467,8 @@ Returns the ACTION symbol on success, nil otherwise."
   (let ((st spatial-window--state))
     (setf (spatial-window--state-action st) 'kill
           (spatial-window--state-selected-windows st) (list (selected-window))
-          (spatial-window--state-highlighted-windows st) (list (selected-window)))
+          (spatial-window--state-highlighted-windows st) (list (selected-window))
+          (spatial-window--state-kill-soft-select st) (selected-window))
     (when (spatial-window--state-overlays-visible st)
       (spatial-window--show-overlays (spatial-window--state-highlighted-windows st))))
   (message "KILL: toggle windows, RET to delete"))
