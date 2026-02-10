@@ -284,14 +284,11 @@ If no target window found (ambiguous key), do nothing."
       (setf (spatial-window--state-overlays-visible st) t))))
 
 (defun spatial-window--select-minibuffer ()
-  "Select the minibuffer window if active, otherwise pass through."
+  "Select the minibuffer window if active, otherwise just exit."
   (interactive)
   (spatial-window--exit-selection-mode)
-  (if (minibuffer-window-active-p (minibuffer-window))
-      (select-window (minibuffer-window))
-    ;; Minibuffer not active; pass through
-    (setq unread-command-events
-          (listify-key-sequence (this-command-keys-vector)))))
+  (when (minibuffer-window-active-p (minibuffer-window))
+    (select-window (minibuffer-window))))
 
 (defun spatial-window--cleanup-mode ()
   "Clean up overlays, cancel timers, and reset state after any mode ends."
