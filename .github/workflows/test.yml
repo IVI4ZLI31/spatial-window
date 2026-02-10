@@ -29,6 +29,14 @@ jobs:
               (package-refresh-contents)
               (package-install 'posframe))"
 
+      - name: Byte-compile
+        run: |
+          emacs --batch -L . \
+            --eval "(setq byte-compile-error-on-warn t)" \
+            -f batch-byte-compile \
+            spatial-window-geometry.el \
+            spatial-window.el
+
       - name: Run tests
         run: |
           emacs --batch -L . \
