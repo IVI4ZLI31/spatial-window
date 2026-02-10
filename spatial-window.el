@@ -696,9 +696,7 @@ While browsing: shows available directions and position."
       (let* ((at-oldest (>= (1+ cursor) len))
              (left-part (unless at-oldest
                           (format "← Undo %s " (car (nth (1+ cursor) history)))))
-             (right-part (if (= cursor 0)
-                             "→ live"
-                           (format "→ %s" (car (nth (1- cursor) history))))))
+             (right-part (format "→ Redo %s" (car (nth cursor history)))))
         (format " %s%s <%d/%d>"
                 (or left-part "")
                 right-part
