@@ -250,12 +250,18 @@ If no target window found (ambiguous key), do nothing."
        ,@body)))
 
 (defun spatial-window--exit-selection-mode ()
-  "Exit selection mode: cancel timer, clear flag, and remove overlays."
-  (let ((timer (spatial-window--state-overlay-timer spatial-window--state)))
+  "Exit selection mode: cancel timer, clear flag, and remove overlays.
+If the user accepted a historical layout via ←/→ navigation, save the
+pre-browsing layout onto the history ring so the navigation is undoable."
+  (let* ((st spatial-window--state)
+         (timer (spatial-window--state-overlay-timer st))
+         (live (spatial-window--state-history-live-config st)))
     (when (timerp timer)
-      (cancel-timer timer)))
-  (setf (spatial-window--state-selection-active spatial-window--state) nil)
-  (spatial-window--remove-overlays))
+      (cancel-timer timer))
+    (when live
+      (spatial-window--save-layout 'undo live))
+    (setf (spatial-window--state-selection-active st) nil)
+    (spatial-window--remove-overlays)))
 
 (defun spatial-window--abort ()
   "Abort window selection and clean up overlays."
@@ -388,10 +394,11 @@ Oldest entries are evicted when this limit is exceeded."
         (tab-bar-tabs-set tabs))
     (set-frame-parameter nil 'spatial-window-config history)))
 
-(defun spatial-window--save-layout (action)
-  "Push current window configuration onto history with ACTION tag.
+(defun spatial-window--save-layout (action &optional config)
+  "Push window configuration onto history with ACTION tag.
+Uses CONFIG if provided, otherwise `current-window-configuration'.
 Evicts oldest entry when `spatial-window-history-max' is exceeded."
-  (let* ((entry (cons action (current-window-configuration)))
+  (let* ((entry (cons action (or config (current-window-configuration))))
          (history (cons entry (spatial-window--get-history))))
     (when (> (length history) spatial-window-history-max)
       (setcdr (nthcdr (1- spatial-window-history-max) history) nil))
