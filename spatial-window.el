@@ -343,7 +343,7 @@ MESSAGE is displayed in the minibuffer."
 (defun spatial-window--kill-multi-mode-message ()
   "Display kill-multi mode status message."
   (let ((n (length (spatial-window--state-selected-windows spatial-window--state))))
-    (message "<enter> to kill %d window%s. C-g to abort."
+    (message "RET to kill %d window%s. C-g to abort."
              n (if (= n 1) "" "s"))))
 
 (defun spatial-window--swap-windows (win1 win2)
@@ -607,11 +607,16 @@ While browsing: shows available directions and position."
 Press a layout key to switch to that window immediately.
 
 Uppercase modifiers change the action before selecting:
-  K - Kill: then press a key to delete that window
-  M - Multi-kill: toggle windows to mark, RET to delete them all
-  S - Swap: then press a key to swap buffers with current window
-  F - Focus: then press a key to zoom into that window
+  K - Kill: delete a window
+  M - Multi-kill: toggle windows on/off, RET to delete all selected
+  S - Swap: swap buffers with current window
+  F - Focus: zoom into a window (delete others)
+
+Other keys:
   Left/Right - Browse window configuration history
+  RET - Exit selection (execute kills in multi-kill mode)
+  SPC - Select minibuffer window (if active), otherwise exit
+  C-g - Abort (restores layout if browsing history)
 
 When `spatial-window-overlay-delay' is set, overlays appear after
 the configured delay instead of immediately."

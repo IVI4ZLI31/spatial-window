@@ -38,7 +38,7 @@ that window.
 
 ### Action Modifiers
 
-While the overlay is showing, uppercase keys switch the action mode before you select a window:
+During selection, uppercase keys switch the action mode before you select a window:
 
 | Key | Action | Description |
 |-----|--------|-------------|
