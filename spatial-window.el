@@ -585,13 +585,13 @@ While browsing: shows available directions and position."
      ((null history) "")
      ;; At live state (not browsing): can only go left
      ((null cursor)
-      (format " ← Undo %s" (car (car history))))
+      (format " [←] Undo %s" (car (car history))))
      ;; Browsing: show available directions + position
      (t
       (let* ((at-oldest (>= (1+ cursor) len))
              (left-part (unless at-oldest
-                          (format "← Undo %s " (car (nth (1+ cursor) history)))))
-             (right-part (format "→ Redo %s" (car (nth cursor history)))))
+                          (format "[←] Undo %s " (car (nth (1+ cursor) history)))))
+             (right-part (format "[→] Redo %s" (car (nth cursor history)))))
         (format " %s%s <%d/%d>"
                 (or left-part "")
                 right-part
