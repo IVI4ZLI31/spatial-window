@@ -491,10 +491,7 @@ Saves layout, selects target, deletes all other windows."
   "Execute multi-kill in unified mode."
   (interactive)
   (if (not (eq (spatial-window--state-action spatial-window--state) 'multi-kill))
-      (progn
-        (spatial-window--exit-selection-mode)
-        (setq unread-command-events
-              (listify-key-sequence (this-command-keys-vector))))
+      (spatial-window--exit-selection-mode)
     (let ((windows-to-kill (spatial-window--state-selected-windows spatial-window--state)))
       (spatial-window--exit-selection-mode)
       (when windows-to-kill
