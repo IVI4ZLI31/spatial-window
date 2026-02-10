@@ -9,27 +9,20 @@
 (require 'ert)
 (require 'spatial-window)
 
-;;; Focus/unfocus tests
+;;; History tests
 
-(ert-deftest spatial-window-test-save-and-restore-layout ()
-  "Save and restore layout history via frame parameter (no `tab-bar-mode')."
+(ert-deftest spatial-window-test-save-layout ()
+  "Save layout pushes entries in LIFO order via frame parameter."
   (set-frame-parameter nil 'spatial-window-config nil)
   (should-not (spatial-window--get-history))
-  ;; Push first layout
   (spatial-window--save-layout 'focus)
-  (should (spatial-window--get-history))
   (should (= 1 (length (spatial-window--get-history))))
-  ;; Push second layout (nested focus)
+  (should (eq 'focus (caar (spatial-window--get-history))))
   (spatial-window--save-layout 'kill)
   (should (= 2 (length (spatial-window--get-history))))
-  ;; Pop one level — returns the action symbol
-  (should (eq 'kill (spatial-window--restore-layout)))
-  (should (= 1 (length (spatial-window--get-history))))
-  ;; Pop last level
-  (should (eq 'focus (spatial-window--restore-layout)))
-  (should-not (spatial-window--get-history))
-  ;; Pop from empty stack returns nil
-  (should-not (spatial-window--restore-layout)))
+  ;; Most recent is first (LIFO)
+  (should (eq 'kill (caar (spatial-window--get-history))))
+  (should (eq 'focus (car (cadr (spatial-window--get-history))))))
 
 (ert-deftest spatial-window-test-history-eviction ()
   "History is capped at `spatial-window-history-max'."
@@ -39,39 +32,8 @@
       (spatial-window--save-layout (intern (format "act%d" i))))
     (should (= 3 (length (spatial-window--get-history))))
     ;; Most recent entries survive (LIFO order)
-    (should (eq 'act4 (spatial-window--restore-layout)))
-    (should (eq 'act3 (spatial-window--restore-layout)))
-    (should (eq 'act2 (spatial-window--restore-layout)))
-    (should-not (spatial-window--restore-layout))))
-
-(ert-deftest spatial-window-test-restore-without-saved-layout ()
-  "Restore returns nil when no layout is saved."
-  (set-frame-parameter nil 'spatial-window-config nil)
-  (should-not (spatial-window--restore-layout)))
-
-(ert-deftest spatial-window-test-unfocus-with-saved-layout ()
-  "Unfocus restores layout and reports success."
-  (let ((msg nil))
-    (cl-letf (((symbol-function 'spatial-window--restore-layout)
-               (lambda () t))
-              ((symbol-function 'message)
-               (lambda (fmt &rest _) (setq msg fmt))))
-      (spatial-window-unfocus)
-      (should (string-match "Restored" msg)))))
-
-(ert-deftest spatial-window-test-unfocus-without-saved-layout ()
-  "Unfocus beeps and reports no saved layout."
-  (let ((msg nil)
-        (beeped nil))
-    (cl-letf (((symbol-function 'spatial-window--restore-layout)
-               (lambda () nil))
-              ((symbol-function 'beep)
-               (lambda () (setq beeped t)))
-              ((symbol-function 'message)
-               (lambda (fmt &rest _) (setq msg fmt))))
-      (spatial-window-unfocus)
-      (should beeped)
-      (should (string-match "No saved" msg)))))
+    (let ((actions (mapcar #'car (spatial-window--get-history))))
+      (should (equal '(act4 act3 act2) actions)))))
 
 ;;; Unified action mode tests
 

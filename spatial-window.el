@@ -397,26 +397,6 @@ Evicts oldest entry when `spatial-window-history-max' is exceeded."
       (setcdr (nthcdr (1- spatial-window-history-max) history) nil))
     (spatial-window--set-history history)))
 
-(defun spatial-window--restore-layout ()
-  "Pop and restore the most recent window configuration.
-Each entry is (ACTION . WINDOW-CONFIGURATION).
-Returns the ACTION symbol on success, nil otherwise."
-  (let ((history (spatial-window--get-history)))
-    (when history
-      (let ((entry (car history)))
-        (set-window-configuration (cdr entry))
-        (spatial-window--set-history (cdr history))
-        (car entry)))))
-
-
-(defun spatial-window-unfocus ()
-  "Restore the previously saved window layout."
-  (interactive)
-  (if (spatial-window--restore-layout)
-      (message "Restored window layout")
-    (beep)
-    (message "No saved layout to restore")))
-
 ;;; Unified selection with action modifiers
 
 (defun spatial-window--act-by-key ()
@@ -457,7 +437,7 @@ Returns the ACTION symbol on success, nil otherwise."
             (select-window win)
             (let ((ignore-window-parameters t))
               (delete-other-windows win))
-            (message "Focused window (unfocus to restore)"))
+            (message "Focused window"))
            (_
             (select-window win))))))))
 
@@ -496,7 +476,7 @@ different window, avoiding an extra deselect step."
          (spatial-window--save-layout 'focus)
          (let ((ignore-window-parameters t))
            (delete-other-windows win))
-         (message "Focused window (unfocus to restore)")))
+         (message "Focused window")))
       (_
        (spatial-window--exit-selection-mode)))))
 

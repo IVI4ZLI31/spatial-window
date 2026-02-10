@@ -48,7 +48,6 @@ During selection, the current window is highlighted. Uppercase keys switch the a
 
 `RET` always confirms: in kill/focus it acts on the current selection, otherwise it exits.
 
-
 ### History Navigation
 
 Actions that modify window layout (kill, swap, focus) automatically save the previous configuration. While
