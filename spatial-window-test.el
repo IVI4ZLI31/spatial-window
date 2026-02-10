@@ -49,30 +49,6 @@
   (set-frame-parameter nil 'spatial-window-config nil)
   (should-not (spatial-window--restore-layout)))
 
-(ert-deftest spatial-window-test-focus-by-key ()
-  "Focus saves layout, selects target, and deletes other windows."
-  (let* ((win1 (selected-window))
-         (saved-config nil)
-         (selected-win nil)
-         (deleted-others nil)
-         (spatial-window--state
-          (spatial-window--make-state
-           :assignments `((,win1 . ("q" "w" "e"))))))
-    (cl-letf (((symbol-function 'this-command-keys)
-               (lambda () "q"))
-              ((symbol-function 'spatial-window--save-layout)
-               (lambda (action) (setq saved-config action)))
-              ((symbol-function 'select-window)
-               (lambda (win) (setq selected-win win)))
-              ((symbol-function 'delete-other-windows)
-               (lambda (win) (setq deleted-others win)))
-              ((symbol-function 'spatial-window--remove-overlays)
-               #'ignore))
-      (spatial-window--focus-by-key)
-      (should (eq saved-config 'focus))
-      (should (eq selected-win win1))
-      (should (eq deleted-others win1)))))
-
 (ert-deftest spatial-window-test-unfocus-with-saved-layout ()
   "Unfocus restores layout and reports success."
   (let ((msg nil))

@@ -411,18 +411,6 @@ Returns the ACTION symbol on success, nil otherwise."
         (car entry)))))
 
 
-(defun spatial-window--focus-by-key ()
-  "Focus on the window corresponding to the pressed key.
-Saves layout, selects target, deletes all other windows."
-  (interactive)
-  (spatial-window--with-target-window
-    (spatial-window--exit-selection-mode)
-    (spatial-window--save-layout 'focus)
-    (select-window win)
-    (let ((ignore-window-parameters t))
-      (delete-other-windows win))
-    (message "Focused window")))
-
 (defun spatial-window-unfocus ()
   "Restore the previously saved window layout."
   (interactive)
@@ -598,7 +586,7 @@ While browsing: shows available directions and position."
 
 (defun spatial-window--unified-mode-message ()
   "Return hint message for unified selection mode."
-  (format "Select window or: [K]ill [M]ulti-kill [S]wap [F]ocus%s"
+  (format "Select window or: [K]ill [M]ulti-kill [S]wap [F]ocus [RET]done%s"
           (spatial-window--history-message-part)))
 
 (defun spatial-window--make-unified-keymap ()
