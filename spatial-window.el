@@ -257,13 +257,6 @@ If no target window found (ambiguous key), do nothing."
   (setf (spatial-window--state-selection-active spatial-window--state) nil)
   (spatial-window--remove-overlays))
 
-(defun spatial-window--select-by-key ()
-  "Select window corresponding to the key that invoked this command."
-  (interactive)
-  (spatial-window--with-target-window
-    (spatial-window--exit-selection-mode)
-    (select-window win)))
-
 (defun spatial-window--abort ()
   "Abort window selection and clean up overlays."
   (interactive)
@@ -350,79 +343,11 @@ MESSAGE is displayed in the minibuffer."
                 (spatial-window--state-selection-active spatial-window--state))))
        #'spatial-window--cleanup-mode))))
 
-(defun spatial-window--make-selection-keymap ()
-  "Build transient keymap with all keyboard layout keys.
-SPC selects minibuffer if active, otherwise passes through."
-  (spatial-window--make-mode-keymap
-   #'spatial-window--select-by-key
-   '(("SPC" . spatial-window--select-minibuffer))))
-
-;;; Kill mode functions (single kill)
-
-(defun spatial-window--kill-by-key ()
-  "Kill the window corresponding to the pressed key."
-  (interactive)
-  (spatial-window--with-target-window
-    (spatial-window--exit-selection-mode)
-    (when (window-live-p win)
-      (spatial-window--save-layout 'kill)
-      (delete-window win))
-    (message "Killed window")))
-
-(defun spatial-window-enter-kill-mode ()
-  "Enter kill mode for deleting one window."
-  (interactive)
-  (spatial-window--setup-transient-mode
-   (spatial-window--make-mode-keymap #'spatial-window--kill-by-key)
-   nil
-   "Select window to kill. C-g to abort."))
-
-;;; Kill-multi mode functions
-
 (defun spatial-window--kill-multi-mode-message ()
   "Display kill-multi mode status message."
   (let ((n (length (spatial-window--state-selected-windows spatial-window--state))))
     (message "<enter> to kill %d window%s. C-g to abort."
              n (if (= n 1) "" "s"))))
-
-(defun spatial-window--toggle-selection ()
-  "Toggle the selection of the window corresponding to the pressed key."
-  (interactive)
-  (spatial-window--with-target-window
-    (let ((st spatial-window--state))
-      (if (memq win (spatial-window--state-selected-windows st))
-          (setf (spatial-window--state-selected-windows st)
-                (delq win (spatial-window--state-selected-windows st)))
-        (push win (spatial-window--state-selected-windows st)))
-      ;; Update highlighted and refresh overlays
-      (setf (spatial-window--state-highlighted-windows st)
-            (spatial-window--state-selected-windows st))
-      (spatial-window--show-overlays (spatial-window--state-highlighted-windows st))
-      (spatial-window--kill-multi-mode-message))))
-
-(defun spatial-window--execute-kill-multi ()
-  "Kill all selected windows and clean up."
-  (interactive)
-  (let ((windows-to-kill (spatial-window--state-selected-windows spatial-window--state)))
-    (spatial-window--remove-overlays)
-    (spatial-window--reset-state)
-    (when windows-to-kill
-      (spatial-window--save-layout 'kill)
-      (dolist (win windows-to-kill)
-        (when (window-live-p win)
-          (delete-window win))))
-    (message "Killed %d window(s)" (length windows-to-kill))))
-
-(defun spatial-window-enter-kill-multi-mode ()
-  "Enter kill-multi mode for selecting multiple windows to delete."
-  (interactive)
-  (setf (spatial-window--state-selected-windows spatial-window--state) nil)
-  (spatial-window--setup-transient-mode
-   (spatial-window--make-mode-keymap #'spatial-window--toggle-selection
-                                     '(("RET" . spatial-window--execute-kill-multi))))
-  (spatial-window--kill-multi-mode-message))
-
-;;; Swap mode functions
 
 (defun spatial-window--swap-windows (win1 win2)
   "Swap the buffers displayed in WIN1 and WIN2."
@@ -439,26 +364,7 @@ SPC selects minibuffer if active, otherwise passes through."
     (set-window-point win1 pt2)
     (set-window-point win2 pt1)))
 
-(defun spatial-window--select-swap-target ()
-  "Select target window for swap operation."
-  (interactive)
-  (spatial-window--with-target-window
-    (spatial-window--exit-selection-mode)
-    (spatial-window--save-layout 'swap)
-    (spatial-window--swap-windows (spatial-window--state-source-window spatial-window--state) win)
-    (select-window win)
-    (message "Swapped windows")))
-
-(defun spatial-window-enter-swap-mode ()
-  "Enter swap mode for exchanging window buffers."
-  (interactive)
-  (setf (spatial-window--state-source-window spatial-window--state) (selected-window))
-  (spatial-window--setup-transient-mode
-   (spatial-window--make-mode-keymap #'spatial-window--select-swap-target)
-   (list (spatial-window--state-source-window spatial-window--state))
-   "Swap mode: select target window. C-g to abort."))
-
-;;; Focus/unfocus mode
+;;; Window configuration history
 
 (defcustom spatial-window-history-max 20
   "Maximum number of window configurations to keep in history.
@@ -504,9 +410,6 @@ Returns the ACTION symbol on success, nil otherwise."
         (spatial-window--set-history (cdr history))
         (car entry)))))
 
-(defun spatial-window--has-saved-layout-p ()
-  "Return the history list, or nil if empty."
-  (spatial-window--get-history))
 
 (defun spatial-window--focus-by-key ()
   "Focus on the window corresponding to the pressed key.
@@ -519,14 +422,6 @@ Saves layout, selects target, deletes all other windows."
     (let ((ignore-window-parameters t))
       (delete-other-windows win))
     (message "Focused window")))
-
-(defun spatial-window-enter-focus-mode ()
-  "Enter focus mode for zooming into a single window."
-  (interactive)
-  (spatial-window--setup-transient-mode
-   (spatial-window--make-mode-keymap #'spatial-window--focus-by-key)
-   nil
-   "Select window to focus. C-g to abort."))
 
 (defun spatial-window-unfocus ()
   "Restore the previously saved window layout."

@@ -9,48 +9,25 @@
 (require 'ert)
 (require 'spatial-window)
 
-;;; UI tests
-
-(ert-deftest spatial-window-test-select-by-key ()
-  "Selects window matching pressed key from assignments."
-  (let* ((win1 (selected-window))
-         (spatial-window--state
-          (spatial-window--make-state
-           :assignments `((,win1 . ("q" "w" "e"))))))
-    (cl-letf (((symbol-function 'this-command-keys)
-               (lambda () "w"))
-              ((symbol-function 'select-window)
-               (lambda (win) win)))
-      (should (eq (spatial-window--select-by-key) win1)))))
-
-(ert-deftest spatial-window-test-make-selection-keymap ()
-  "Keymap contains all layout keys and \\`C-g'."
-  (let ((map (spatial-window--make-selection-keymap)))
-    (should (keymapp map))
-    (should (lookup-key map "q"))
-    (should (lookup-key map "a"))
-    (should (lookup-key map "z"))
-    (should (lookup-key map (kbd "C-g")))))
-
 ;;; Focus/unfocus tests
 
 (ert-deftest spatial-window-test-save-and-restore-layout ()
-  "Save and restore layout stack via frame parameter (no `tab-bar-mode')."
+  "Save and restore layout history via frame parameter (no `tab-bar-mode')."
   (set-frame-parameter nil 'spatial-window-config nil)
-  (should-not (spatial-window--has-saved-layout-p))
+  (should-not (spatial-window--get-history))
   ;; Push first layout
   (spatial-window--save-layout 'focus)
-  (should (spatial-window--has-saved-layout-p))
-  (should (= 1 (length (spatial-window--has-saved-layout-p))))
+  (should (spatial-window--get-history))
+  (should (= 1 (length (spatial-window--get-history))))
   ;; Push second layout (nested focus)
   (spatial-window--save-layout 'kill)
-  (should (= 2 (length (spatial-window--has-saved-layout-p))))
+  (should (= 2 (length (spatial-window--get-history))))
   ;; Pop one level — returns the action symbol
   (should (eq 'kill (spatial-window--restore-layout)))
-  (should (= 1 (length (spatial-window--has-saved-layout-p))))
+  (should (= 1 (length (spatial-window--get-history))))
   ;; Pop last level
   (should (eq 'focus (spatial-window--restore-layout)))
-  (should-not (spatial-window--has-saved-layout-p))
+  (should-not (spatial-window--get-history))
   ;; Pop from empty stack returns nil
   (should-not (spatial-window--restore-layout)))
 
@@ -60,7 +37,7 @@
   (let ((spatial-window-history-max 3))
     (dotimes (i 5)
       (spatial-window--save-layout (intern (format "act%d" i))))
-    (should (= 3 (length (spatial-window--has-saved-layout-p))))
+    (should (= 3 (length (spatial-window--get-history))))
     ;; Most recent entries survive (LIFO order)
     (should (eq 'act4 (spatial-window--restore-layout)))
     (should (eq 'act3 (spatial-window--restore-layout)))
