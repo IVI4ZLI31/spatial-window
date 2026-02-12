@@ -205,26 +205,47 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
                result)
       alist)))
 
-(defun spatial-window--assign-keys (kbd-layout &optional frame window-bounds)
-  "Assign keyboard keys to windows based on row-gated Voronoi.
-KBD-LAYOUT is the keyboard layout as list of rows (required)."
-  (let ((kbd-layout kbd-layout))
-    (if (not (apply #'= (mapcar #'length kbd-layout)))
+(defun spatial-window--compute-assignment (window-bounds)
+  "Compute spatial grid assignment for WINDOW-BOUNDS.
+Uses a hardcoded 3×10 grid matching all supported keyboard topologies.
+Returns 2D vector (3 rows × 10 cols) of window labels, nil for unassigned cells.
+Returns nil with message if more than 30 windows."
+  (let ((kbd-rows 3)
+        (kbd-cols 10)
+        (num-windows (length window-bounds)))
+    (if (> num-windows 30)
         (progn
-          (message "Invalid keyboard layout: rows have different lengths")
+          (message "Too many windows: %d windows for 30 keys" num-windows)
           nil)
-      (let* ((window-bounds (or window-bounds (spatial-window--window-bounds frame)))
-             (kbd-rows (length kbd-layout))
-             (kbd-cols (length (car kbd-layout)))
-             (num-windows (length window-bounds)))
-        (if (> num-windows (* kbd-rows kbd-cols))
-            (progn
-              (message "Too many windows: %d windows for %d keys" num-windows (* kbd-rows kbd-cols))
-              nil)
-          (let ((final (spatial-window--assign-cells kbd-rows kbd-cols window-bounds)))
-            (spatial-window--ensure-all-windows-have-keys
-             final kbd-rows kbd-cols window-bounds)
-            (spatial-window--final-to-keys final kbd-rows kbd-cols kbd-layout)))))))
+      (let ((final (spatial-window--assign-cells kbd-rows kbd-cols window-bounds)))
+        (spatial-window--ensure-all-windows-have-keys
+         final kbd-rows kbd-cols window-bounds)
+        final))))
+
+(defun spatial-window--assignment-to-keys (grid kbd-layout)
+  "Map assignment GRID to keyboard keys using KBD-LAYOUT.
+GRID is the 2D vector returned by `spatial-window--compute-assignment'.
+KBD-LAYOUT is the keyboard layout (list of rows of key strings).
+Returns alist of (window . (list of keys)), or nil if layout is invalid."
+  (if (not (apply #'= (mapcar #'length kbd-layout)))
+      (progn
+        (message "Invalid keyboard layout: rows have different lengths")
+        nil)
+    (let ((kbd-rows (length kbd-layout))
+          (kbd-cols (length (car kbd-layout))))
+      (spatial-window--final-to-keys grid kbd-rows kbd-cols kbd-layout))))
+
+(defun spatial-window--grid-to-strings (grid)
+  "Convert assignment GRID to list of space-separated label strings.
+Each cell renders as the window's symbol-name, or · for nil."
+  (let ((result nil))
+    (dotimes (row (length grid))
+      (let ((cells nil))
+        (dotimes (col (length (aref grid row)))
+          (let ((win (aref (aref grid row) col)))
+            (push (if win (symbol-name win) "·") cells)))
+        (push (mapconcat #'identity (nreverse cells) " ") result)))
+    (nreverse result)))
 
 (defun spatial-window--format-key-grid (keys kbd-layout)
   "Format KEYS as a keyboard grid string using KBD-LAYOUT."

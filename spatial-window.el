@@ -326,7 +326,10 @@ HIGHLIGHTED is a list of windows to highlight in overlays.
 MESSAGE is displayed in the minibuffer."
   (require 'posframe)
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys (spatial-window--get-layout))
+    (setf (spatial-window--state-assignments st)
+          (spatial-window--assignment-to-keys
+           (spatial-window--compute-assignment (spatial-window--window-bounds))
+           (spatial-window--get-layout))
           (spatial-window--state-highlighted-windows st) highlighted)
     (when (spatial-window--state-assignments st)
       (setf (spatial-window--state-selection-active st) t)
@@ -512,7 +515,10 @@ different window, avoiding an extra deselect step."
 (defun spatial-window--history-refresh ()
   "Recompute assignments and refresh overlays after history navigation."
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys (spatial-window--get-layout)))
+    (setf (spatial-window--state-assignments st)
+          (spatial-window--assignment-to-keys
+           (spatial-window--compute-assignment (spatial-window--window-bounds))
+           (spatial-window--get-layout)))
     (when (spatial-window--state-overlays-visible st)
       (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
     (message "%s" (spatial-window--unified-mode-message))))
