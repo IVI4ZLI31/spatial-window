@@ -61,20 +61,21 @@
 ;;; T=top-left  B=bottom-left  R=right
 ;;;
 ;;; Row 0: T T T T T R R R R R
-;;; Row 1: R R R R R R R R R R  ← voronoi: right window (full height) wins entire middle row
+;;; Row 1: · · · · · R R R R R  ← geo-overlap gate: R excluded from left cols; T/B fail row threshold → nil
 ;;; Row 2: B B B B B R R R R R
 
 (ert-deftest spatial-window-voronoi-row-test-assign-keys-2-left-1-right ()
   "2 windows top-bottom left, 1 spanning right.
-Voronoi: right window's centroid is at frame center (full height), so it wins
-the entire middle row.  Left windows get only top and bottom rows."
+Geo-overlap gate: R has zero x-overlap with left-half cells, so it is excluded.
+T and B each have only 50% row overlap (< 60% threshold), so they fall through
+to geo-eligible fallback — but then tie on Voronoi distance → ambiguity → nil."
   (let* ((window-bounds '((T 0.0 0.5 0.0 0.5)
                           (B 0.0 0.5 0.5 1.0)
                           (R 0.5 1.0 0.0 1.0)))
          (grid (spatial-window--compute-assignment window-bounds))
          (rows (spatial-window--grid-to-strings grid)))
     (should (equal rows '("T T T T T R R R R R"
-                          "R R R R R R R R R R"
+                          "· · · · · R R R R R"
                           "B B B B B R R R R R")))))
 
 ;;; ┌────────┬──────┐
@@ -87,13 +88,14 @@ the entire middle row.  Left windows get only top and bottom rows."
 ;;; R=magit-rev  M=magit  C=claude
 ;;;
 ;;; Row 0: R R R R R R C C C C
-;;; Row 1: C C C C C C C C C C  ← voronoi: claude (full height) wins entire middle row
+;;; Row 1: · · · · · C C C C C  ← geo-overlap gate: C excluded from left cols; R/M fail row threshold → nil
 ;;; Row 2: M M M M M M C C C C
 
 (ert-deftest spatial-window-voronoi-row-test-near-equal-vertical-split ()
   "Near-equal vertical split: 49/51 at y=0.486.
-Voronoi: claude (full height, right) wins the entire middle row due to
-area-weighted distance — its large area pulls cells toward it."
+Geo-overlap gate: C has zero x-overlap with left-half cells, so it is excluded.
+R and M each have ~50% row overlap (< 60% threshold) → geo-eligible fallback →
+ambiguity → nil for left-half middle-row cells."
   (let* ((window-bounds
           `((C 0.5894736842105263 0.9988304093567252 0.0019230769230769232 0.9846153846153847)
             (R 0.0011695906432748538 0.5894736842105263 0.0019230769230769232 0.4855769230769231)
@@ -101,7 +103,7 @@ area-weighted distance — its large area pulls cells toward it."
          (grid (spatial-window--compute-assignment window-bounds))
          (rows (spatial-window--grid-to-strings grid)))
     (should (equal rows '("R R R R R R C C C C"
-                          "C C C C C C C C C C"
+                          "· · · · · C C C C C"
                           "M M M M M M C C C C")))))
 
 ;;; ┌────────┬──────┐
@@ -119,13 +121,13 @@ area-weighted distance — its large area pulls cells toward it."
 ;;; S=spatial  J=journal  T=tools  C=claude
 ;;;
 ;;; Row 0: S S S S S S C C C C
-;;; Row 1: C C C J C C C C C C  ← voronoi: claude wins most of middle row; journal steals one cell
+;;; Row 1: · · J J · C C C C C  ← geo-overlap gate: C excluded from left cols; J wins its cells, rest ambiguous
 ;;; Row 2: T T T T T C C C C C
 
 (ert-deftest spatial-window-voronoi-row-test-3-left-stacked-1-right ()
   "3 stacked windows on left (50/24/24) + full-height right.
-Voronoi: claude (full height, large area) wins most of the middle row.
-Journal (small, middle-left) steals only one cell."
+Geo-overlap gate: C has zero x-overlap with left-half cells. Among left windows,
+J wins cols 2-3 via centroid proximity; other left cells are ambiguous."
   (let* ((window-bounds
           `((T 0.0011695906432748538 0.5894736842105263
                0.7423076923076923 0.9846153846153847)
@@ -138,7 +140,7 @@ Journal (small, middle-left) steals only one cell."
          (grid (spatial-window--compute-assignment window-bounds))
          (rows (spatial-window--grid-to-strings grid)))
     (should (equal rows '("S S S S S S C C C C"
-                          "C C C J C C C C C C"
+                          "· · J J · C C C C C"
                           "T T T T T C C C C C")))))
 
 ;;; Middle row assignment threshold characterization
@@ -185,22 +187,23 @@ split away from exactly 50%."
 ;;; └─────┴────────────┴────────┘
 ;;; L=left  T=mid-top  B=mid-bot  R=right
 ;;;
-;;; Row 0: L T T T T T T T R R
-;;; Row 1: L L L L R R R R R R  ← voronoi: left/right (full height) expand into middle row
-;;; Row 2: L B B B B B B B R R
+;;; Row 0: L L T T T T T R R R
+;;; Row 1: L L · · · · · R R R  ← geo-overlap gate: T/B excluded from L/R cols; middle cells ambiguous
+;;; Row 2: L L B B B B B R R R
 
 (ert-deftest spatial-window-voronoi-row-test-assign-keys-3-columns ()
   "3 columns: left/right span full height, middle has top-bottom split.
-Voronoi: full-height windows expand into the middle row."
+Geo-overlap gate: T/B have zero x-overlap with L/R columns; middle-row cells
+in cols 2-6 have only T/B as geo-eligible, both fail row threshold → ambiguous."
   (let* ((window-bounds '((L 0.0 0.2 0.0 1.0)
                           (T 0.2 0.7 0.0 0.5)
                           (B 0.2 0.7 0.5 1.0)
                           (R 0.7 1.0 0.0 1.0)))
          (grid (spatial-window--compute-assignment window-bounds))
          (rows (spatial-window--grid-to-strings grid)))
-    (should (equal rows '("L T T T T T T T R R"
-                          "L L L L R R R R R R"
-                          "L B B B B B B B R R")))))
+    (should (equal rows '("L L T T T T T R R R"
+                          "L L · · · · · R R R"
+                          "L L B B B B B R R R")))))
 
 ;;; ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬───────┐
 ;;; │                                                                                                                                                     │       │
@@ -308,12 +311,13 @@ Voronoi: sidebar-top and sidebar-bot each steal exactly 1 cell."
 ;;; G=magit  C=claude  A=sw1  B=sw2  D=sw3  E=sw4  Z=backtrace
 ;;;
 ;;; Row 0: G G G G G C C C C C
-;;; Row 1: A C C C C C C C C C  ← voronoi: claude wins most of middle row
+;;; Row 1: A G G G · C C C C C  ← geo-overlap gate: C excluded from left cols; G wins via geo-eligible
 ;;; Row 2: Z B D E E E C C C C
 
 (ert-deftest spatial-window-voronoi-row-test-complex-spanning-layout ()
   "Complex layout: 7 windows with multiple spanning. All must get cells.
-Voronoi: claude (full height, right half) wins most of the middle row."
+Geo-overlap gate: C excluded from left-half cells. G wins middle-row left cells
+via geo-eligible fallback (it overlaps the top portion of the middle row)."
   (let* ((window-bounds
           '((G 0.0 0.511 0.0 0.483)
             (C 0.511 1.0 0.0 1.0)
@@ -325,7 +329,7 @@ Voronoi: claude (full height, right half) wins most of the middle row."
          (grid (spatial-window--compute-assignment window-bounds))
          (rows (spatial-window--grid-to-strings grid)))
     (should (equal rows '("G G G G G C C C C C"
-                          "A C C C C C C C C C"
+                          "A G G G · C C C C C"
                           "Z B D E E E C C C C")))))
 
 ;;; ┌────────┬─────┐
@@ -499,14 +503,14 @@ middle row unassigned.  posframe-top steals cells to ensure it has keys."
 ;;; A=activities  M=magit  C=claude  L=elpaca-log
 ;;;
 ;;; Row 0: A A A A A C C C C C
-;;; Row 1: C C C C C C C C C C  ← voronoi: claude (large area) wins entire middle row
+;;; Row 1: · · · · · C C C C C  ← geo-overlap gate: C excluded from left cols; A/M fail row threshold → nil
 ;;; Row 2: M M M · L L L · C C  ← ambiguity at log/magit and log/claude boundaries
 
 (ert-deftest spatial-window-voronoi-row-test-full-width-bottom-panel ()
   "Full-width bottom panel (16% height).
-Voronoi: claude (large area, full right) wins entire middle row.  Log panel
-gets 3 cells in bottom row center — boundary cells left unassigned where log
-competes with vertically-stacked magit/claude at similar scores."
+Geo-overlap gate: C has zero x-overlap with left-half cells in middle row.
+A and M each have ~50% row overlap (< 60% threshold) → geo-eligible fallback →
+ambiguity → nil for left-half middle-row cells."
   (let* ((window-bounds
           `((L 0.0011695906432748538 0.9988304093567252
                0.823076923076923 0.9846153846153847)
@@ -519,7 +523,7 @@ competes with vertically-stacked magit/claude at similar scores."
          (grid (spatial-window--compute-assignment window-bounds))
          (rows (spatial-window--grid-to-strings grid)))
     (should (equal rows '("A A A A A C C C C C"
-                          "C C C C C C C C C C"
+                          "· · · · · C C C C C"
                           "M M M · L L L · C C")))))
 
 (provide 'spatial-window-geometry-voronoi-row-test)
