@@ -16,23 +16,21 @@
 
 (defun spatial-window-voronoi-row-test--assert-assignment (window-bounds expected-rows)
   "Assert WINDOW-BOUNDS produces EXPECTED-ROWS via compute-assignment.
-On mismatch, print layout diagram and side-by-side expected/actual to
-stderr (visible in batch mode), then fail."
+On mismatch, show layout diagram and side-by-side diff via `ert-info'."
   (let* ((grid (spatial-window--compute-assignment window-bounds))
          (actual-rows (spatial-window--grid-to-strings grid)))
-    (unless (equal actual-rows expected-rows)
-      (let ((lines (list "" (spatial-window--bounds-to-string window-bounds) "")))
-        (dotimes (i (length expected-rows))
-          (push (if (= i 0)
-                    (format "expected: %s   actual: %s"
-                            (nth i expected-rows) (nth i actual-rows))
-                  (format "        : %s           %s"
-                          (nth i expected-rows) (nth i actual-rows)))
-                lines))
-        (setq lines (nreverse lines))
-        (dolist (line lines)
-          (message "%s" line))
-        (ert-fail "grid mismatch — see diagram above")))))
+    (ert-info ((concat "\n" (spatial-window--bounds-to-string window-bounds) "\n\n"
+                       (mapconcat
+                        #'identity
+                        (cl-loop for e in expected-rows
+                                 for a in actual-rows
+                                 for i from 0
+                                 collect (if (= i 0)
+                                             (format "expected: %s   actual: %s" e a)
+                                           (format "        : %s           %s" e a)))
+                        "\n"))
+               :prefix "")
+      (should (equal actual-rows expected-rows)))))
 
 ;;; Key assignment tests
 
