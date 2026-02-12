@@ -2,17 +2,13 @@
 
 ;;; Commentary:
 ;; ERT tests for spatial-window-geometry.el
+;; Pure geometry tests: window-bounds in, grid assignment out.
+;; No keyboard layout dependency — assertions use grid-to-strings with symbol labels.
 
 ;;; Code:
 
 (require 'ert)
 (require 'spatial-window-geometry)
-
-(defconst spatial-window-test-layout
-  '(("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
-    ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")
-    ("z" "x" "c" "v" "b" "n" "m" "," "." "/"))
-  "QWERTY layout for tests.")
 
 ;;; Key assignment tests
 
@@ -28,15 +24,13 @@
 ;;; Row 2: W W W W W W W W W W
 
 (ert-deftest spatial-window-test-assign-keys-single-window ()
-  "Single window gets all keys."
-  (let* ((win 'win)
-         (all-keys (apply #'append spatial-window-test-layout))
-         (window-bounds `((,win 0.0 1.0 0.0 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (keys (cdr (assq win result))))
-    (should (seq-set-equal-p keys all-keys))))
+  "Single window gets all cells."
+  (let* ((window-bounds '((W 0.0 1.0 0.0 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("W W W W W W W W W W"
+                          "W W W W W W W W W W"
+                          "W W W W W W W W W W")))))
 
 ;;; ┌─────────┬─────────┐
 ;;; │         │         │
@@ -51,21 +45,13 @@
 
 (ert-deftest spatial-window-test-assign-keys-2-columns ()
   "2 left-right windows: each gets half columns, all rows."
-  (let* ((win-left 'win-left)
-         (win-right 'win-right)
-         (window-bounds `((,win-left 0.0 0.5 0.0 1.0)
-                          (,win-right 0.5 1.0 0.0 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (left-keys (cdr (assq win-left result)))
-         (right-keys (cdr (assq win-right result))))
-    (should (seq-set-equal-p left-keys '("q" "w" "e" "r" "t"
-                                         "a" "s" "d" "f" "g"
-                                         "z" "x" "c" "v" "b")))
-    (should (seq-set-equal-p right-keys '("y" "u" "i" "o" "p"
-                                          "h" "j" "k" "l" ";"
-                                          "n" "m" "," "." "/")))))
+  (let* ((window-bounds '((L 0.0 0.5 0.0 1.0)
+                          (R 0.5 1.0 0.0 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("L L L L L R R R R R"
+                          "L L L L L R R R R R"
+                          "L L L L L R R R R R")))))
 
 ;;; ┌──────────┬──────────┐
 ;;; │ T        │          │
@@ -82,33 +68,14 @@
 
 (ert-deftest spatial-window-test-assign-keys-2-left-1-right ()
   "2 windows top-bottom left, 1 spanning right: right gets all 3 rows."
-  (let* ((win-top-left 'win-top-left)
-         (win-bottom-left 'win-bottom-left)
-         (win-right 'win-right)
-         (window-bounds `((,win-top-left 0.0 0.5 0.0 0.5)
-                          (,win-bottom-left 0.0 0.5 0.5 1.0)
-                          (,win-right 0.5 1.0 0.0 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (right-keys (cdr (assq win-right result)))
-         (top-left-keys (cdr (assq win-top-left result)))
-         (bottom-left-keys (cdr (assq win-bottom-left result)))
-         (left-keys (append top-left-keys bottom-left-keys))
-         (middle-row '("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
-    ;; Right window: all 3 rows, right half = 15 keys
-    (should (seq-set-equal-p right-keys '("y" "u" "i" "o" "p"
-                                          "h" "j" "k" "l" ";"
-                                          "n" "m" "," "." "/")))
-    ;; Right window includes middle row (h, j, k, l, ;)
-    (should (seq-set-equal-p (seq-intersection right-keys middle-row)
-                             '("h" "j" "k" "l" ";")))
-    ;; Left windows exclude middle row entirely (50/50 split = tie)
-    (should (null (seq-intersection left-keys middle-row)))
-    ;; Top-left: top row left half
-    (should (seq-set-equal-p top-left-keys '("q" "w" "e" "r" "t")))
-    ;; Bottom-left: bottom row left half
-    (should (seq-set-equal-p bottom-left-keys '("z" "x" "c" "v" "b")))))
+  (let* ((window-bounds '((T 0.0 0.5 0.0 0.5)
+                          (B 0.0 0.5 0.5 1.0)
+                          (R 0.5 1.0 0.0 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("T T T T T R R R R R"
+                          "· · · · · R R R R R"
+                          "B B B B B R R R R R")))))
 
 ;;; ┌──────────────────┬─────────────┐
 ;;; │  R               │             │
@@ -127,28 +94,15 @@
   "Near-equal vertical split: 49/51 at y=0.486 should leave middle row unmapped.
 The split is only ~2% off center — both windows cover roughly half the screen.
 Y-dominance margin (0.4) requires at least a ~57/43 split to assign."
-  (let* ((win-claude 'win-claude)
-         (win-magit-rev 'win-magit-rev)
-         (win-magit 'win-magit)
-         ;; Real layout: left 59%, right 41%, left split 48%/50% vertically
-         (window-bounds
-          `((,win-claude 0.5894736842105263 0.9988304093567252 0.0019230769230769232 0.9846153846153847)
-            (,win-magit-rev 0.0011695906432748538 0.5894736842105263 0.0019230769230769232 0.4855769230769231)
-            (,win-magit 0.0011695906432748538 0.5894736842105263 0.4855769230769231 0.9846153846153847)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (claude-keys (cdr (assq win-claude result)))
-         (magit-rev-keys (cdr (assq win-magit-rev result)))
-         (magit-keys (cdr (assq win-magit result))))
-    ;; magit-revision: top row, left 6 columns only
-    (should (seq-set-equal-p magit-rev-keys '("q" "w" "e" "r" "t" "y")))
-    ;; magit: bottom row only, left 6 columns (middle row should be unmapped)
-    (should (seq-set-equal-p magit-keys '("z" "x" "c" "v" "b" "n")))
-    ;; claude: all 3 rows, right 4 columns
-    (should (seq-set-equal-p claude-keys '("u" "i" "o" "p"
-                                           "j" "k" "l" ";"
-                                           "m" "," "." "/")))))
+  (let* ((window-bounds
+          `((C 0.5894736842105263 0.9988304093567252 0.0019230769230769232 0.9846153846153847)
+            (R 0.0011695906432748538 0.5894736842105263 0.0019230769230769232 0.4855769230769231)
+            (M 0.0011695906432748538 0.5894736842105263 0.4855769230769231 0.9846153846153847)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("R R R R R R C C C C"
+                          "· · · · · · C C C C"
+                          "M M M M M M C C C C")))))
 
 ;;; ┌──────────────────┬─────────────┐
 ;;; │  S               │             │
@@ -169,34 +123,20 @@ Y-dominance margin (0.4) requires at least a ~57/43 split to assign."
 (ert-deftest spatial-window-test-3-left-stacked-1-right ()
   "3 stacked windows on left (50/24/24) + full-height right.
 Column consolidation takes unassigned cells; same-column owners are not stolen from."
-  (let* ((win-tools 'win-tools)
-         (win-claude 'win-claude)
-         (win-spatial 'win-spatial)
-         (win-journal 'win-journal)
-         (window-bounds
-          `((,win-tools   0.0011695906432748538 0.5894736842105263
-                          0.7423076923076923 0.9846153846153847)
-            (,win-claude  0.5894736842105263 0.9988304093567252
-                          0.0019230769230769232 0.9846153846153847)
-            (,win-spatial 0.0011695906432748538 0.5894736842105263
-                          0.0019230769230769232 0.49903846153846154)
-            (,win-journal 0.0011695906432748538 0.5894736842105263
-                          0.49903846153846154 0.7423076923076923)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (spatial-keys (cdr (assq win-spatial result)))
-         (claude-keys (cdr (assq win-claude result)))
-         (journal-keys (cdr (assq win-journal result)))
-         (tools-keys (cdr (assq win-tools result))))
-    ;; spatial: top row, left 6 columns
-    (should (seq-set-equal-p spatial-keys '("q" "w" "e" "r" "t" "y")))
-    ;; claude: right 4 columns, all rows
-    (should (seq-set-equal-p claude-keys '("u" "i" "o" "p"
-                                           "j" "k" "l" ";"
-                                           "m" "," "." "/")))
-    (should (seq-set-equal-p journal-keys '("a" "s" "d" "f" "g" "h")))
-    (should (seq-set-equal-p tools-keys '("z" "x" "c" "v" "b" "n")))))
+  (let* ((window-bounds
+          `((T 0.0011695906432748538 0.5894736842105263
+               0.7423076923076923 0.9846153846153847)
+            (C 0.5894736842105263 0.9988304093567252
+               0.0019230769230769232 0.9846153846153847)
+            (S 0.0011695906432748538 0.5894736842105263
+               0.0019230769230769232 0.49903846153846154)
+            (J 0.0011695906432748538 0.5894736842105263
+               0.49903846153846154 0.7423076923076923)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("S S S S S S C C C C"
+                          "J J J J J J C C C C"
+                          "T T T T T T C C C C")))))
 
 ;;; Middle row assignment threshold characterization
 ;;;
@@ -207,19 +147,21 @@ Column consolidation takes unassigned cells; same-column owners are not stolen f
 (ert-deftest spatial-window-test-middle-row-assignment-threshold ()
   "Binary-search for the vertical split threshold where bigger window wins middle row.
 With two full-width windows split at y=s, the bottom window is taller when s<0.5.
-Search for the largest s where the bottom window gets 20 keys (wins middle row)."
+Search for the largest s where the bottom window gets 20 cells (wins middle row)."
   (let ((lo 0.3) (hi 0.5))
     ;; Binary search: lo = bottom wins middle row, hi = middle row unassigned
     (dotimes (_ 30)
       (let* ((mid (* 0.5 (+ lo hi)))
-             (win-top 'win-top) (win-bot 'win-bot)
-             (window-bounds `((,win-top 0.0 1.0 0.0 ,mid)
-                              (,win-bot 0.0 1.0 ,mid 1.0)))
-             (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-             (bot-keys (cdr (assq win-bot result))))
-        (if (= (length bot-keys) 20)
+             (window-bounds `((top 0.0 1.0 0.0 ,mid)
+                              (bot 0.0 1.0 ,mid 1.0)))
+             (grid (spatial-window--compute-assignment window-bounds))
+             (bot-cells 0))
+        ;; Count cells assigned to bot
+        (dotimes (row 3)
+          (dotimes (col 10)
+            (when (eq (aref (aref grid row) col) 'bot)
+              (cl-incf bot-cells))))
+        (if (= bot-cells 20)
             (setq lo mid)
           (setq hi mid))))
     ;; Threshold is at hi (bigger-side percentage = 100 - hi*100)
@@ -244,31 +186,15 @@ Search for the largest s where the bottom window gets 20 keys (wins middle row).
 
 (ert-deftest spatial-window-test-assign-keys-3-columns ()
   "3 columns: left/right span full height, middle has top-bottom split."
-  (let* ((win-left 'win-left)
-         (win-mid-top 'win-mid-top)
-         (win-mid-bot 'win-mid-bot)
-         (win-right 'win-right)
-         ;; Left: 20%, Middle: 50%, Right: 30%
-         ;; Boundaries chosen to avoid 50/50 overlap ties at key boundaries
-         (window-bounds `((,win-left 0.0 0.2 0.0 1.0)
-                          (,win-mid-top 0.2 0.7 0.0 0.5)
-                          (,win-mid-bot 0.2 0.7 0.5 1.0)
-                          (,win-right 0.7 1.0 0.0 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (left-keys (cdr (assq win-left result)))
-         (mid-top-keys (cdr (assq win-mid-top result)))
-         (mid-bot-keys (cdr (assq win-mid-bot result)))
-         (right-keys (cdr (assq win-right result))))
-    ;; Left column (20%) gets 2 cols × 3 rows = 6 keys
-    (should (seq-set-equal-p left-keys '("q" "w" "a" "s" "z" "x")))
-    ;; Right column (30%) gets 3 cols × 3 rows = 9 keys
-    (should (seq-set-equal-p right-keys '("i" "o" "p" "k" "l" ";" "," "." "/")))
-    ;; Mid-top: middle columns, top row only (middle row skipped due to 50/50 split)
-    (should (seq-set-equal-p mid-top-keys '("e" "r" "t" "y" "u")))
-    ;; Mid-bot: middle columns, bottom row only
-    (should (seq-set-equal-p mid-bot-keys '("c" "v" "b" "n" "m")))))
+  (let* ((window-bounds '((L 0.0 0.2 0.0 1.0)
+                          (T 0.2 0.7 0.0 0.5)
+                          (B 0.2 0.7 0.5 1.0)
+                          (R 0.7 1.0 0.0 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("L L T T T T T R R R"
+                          "L L · · · · · R R R"
+                          "L L B B B B B R R R")))))
 
 ;;; ┌─────────────────────┬──┐
 ;;; │                     │T │
@@ -286,30 +212,16 @@ Search for the largest s where the bottom window gets 20 keys (wins middle row).
 ;;; Row 2: M M M M M M M M M B
 
 (ert-deftest spatial-window-test-assign-keys-extreme-split ()
-  "Extreme split: 95.5% main / 4.5% sidebar. All windows must get keys.
-Sidebar-top steals 'p', extends to ';' via column consolidation; sidebar-bot steals '/'; main gets 27."
-  (let* ((win-main 'win-main)
-         (win-sidebar-top 'win-sidebar-top)
-         (win-sidebar-bot 'win-sidebar-bot)
-         ;; Main takes 95.5% width, sidebar 4.5%
-         ;; Sidebar split: 92% top, 8% bottom
-         (window-bounds `((,win-main 0.0 0.955 0.0 1.0)
-                          (,win-sidebar-top 0.955 1.0 0.0 0.92)
-                          (,win-sidebar-bot 0.955 1.0 0.92 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (main-keys (cdr (assq win-main result)))
-         (top-keys (cdr (assq win-sidebar-top result)))
-         (bot-keys (cdr (assq win-sidebar-bot result))))
-    ;; Sidebar-top steals "p" and extends to ";" (column consolidation)
-    (should (seq-set-equal-p top-keys '("p" ";")))
-    ;; Sidebar-bot steals "/" (bottom-right corner)
-    (should (seq-set-equal-p bot-keys '("/")))
-    ;; Main gets 27 keys
-    (should (seq-set-equal-p main-keys '("q" "w" "e" "r" "t" "y" "u" "i" "o"
-                                          "a" "s" "d" "f" "g" "h" "j" "k" "l"
-                                          "z" "x" "c" "v" "b" "n" "m" "," ".")))))
+  "Extreme split: 95.5% main / 4.5% sidebar. All windows must get cells.
+Sidebar-top steals rightmost column, extends via column consolidation; sidebar-bot steals bottom-right."
+  (let* ((window-bounds '((M 0.0 0.955 0.0 1.0)
+                          (T 0.955 1.0 0.0 0.92)
+                          (B 0.955 1.0 0.92 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("M M M M M M M M M T"
+                          "M M M M M M M M M T"
+                          "M M M M M M M M M B")))))
 
 ;;; ┌───────────────────┐
 ;;; │  1  100w×33h      │
@@ -326,53 +238,38 @@ Sidebar-top steals 'p', extends to ';' via column consolidation; sidebar-bot ste
 
 (ert-deftest spatial-window-test-max-3-rows ()
   "3 top-bottom windows = 3 keyboard rows, each gets exactly 1 row."
-  (let* ((win1 'win1) (win2 'win2) (win3 'win3)
-         (window-bounds `((,win1 0.0 1.0 0.0 0.33)
-                          (,win2 0.0 1.0 0.33 0.67)
-                          (,win3 0.0 1.0 0.67 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout)))
-    (should (seq-set-equal-p (cdr (assq win1 result))
-                             '("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")))
-    (should (seq-set-equal-p (cdr (assq win2 result))
-                             '("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")))
-    (should (seq-set-equal-p (cdr (assq win3 result))
-                             '("z" "x" "c" "v" "b" "n" "m" "," "." "/")))))
+  (let* ((window-bounds '((A 0.0 1.0 0.0 0.33)
+                          (B 0.0 1.0 0.33 0.67)
+                          (C 0.0 1.0 0.67 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("A A A A A A A A A A"
+                          "B B B B B B B B B B"
+                          "C C C C C C C C C C")))))
 
 ;;; ┌──┬──┬──┬──┬──┬──┬──┬──┬──┬──┐
 ;;; │  │  │  │  │  │  │  │  │  │  │
 ;;; │10│10│10│10│10│10│10│10│10│10│ (10w×100h each)
 ;;; │  │  │  │  │  │  │  │  │  │  │
 ;;; └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
-;;; 0=win0  1=win1 ... 9=win9
+;;; 0..9 columns
 ;;;
-;;; Row 0: 0 1 2 3 4 5 6 7 8 9
-;;; Row 1: 0 1 2 3 4 5 6 7 8 9
-;;; Row 2: 0 1 2 3 4 5 6 7 8 9
+;;; Row 0: A B C D E F G H I J
+;;; Row 1: A B C D E F G H I J
+;;; Row 2: A B C D E F G H I J
 
 (ert-deftest spatial-window-test-max-10-cols ()
-  "10 left-right windows = 10 keyboard columns, each gets 3 keys (1 col × 3 rows)."
-  (let* ((win0 'win0) (win1 'win1) (win2 'win2) (win3 'win3) (win4 'win4)
-         (win5 'win5) (win6 'win6) (win7 'win7) (win8 'win8) (win9 'win9)
-         (window-bounds
-          `((,win0 0.0 0.1 0.0 1.0) (,win1 0.1 0.2 0.0 1.0) (,win2 0.2 0.3 0.0 1.0)
-            (,win3 0.3 0.4 0.0 1.0) (,win4 0.4 0.5 0.0 1.0) (,win5 0.5 0.6 0.0 1.0)
-            (,win6 0.6 0.7 0.0 1.0) (,win7 0.7 0.8 0.0 1.0) (,win8 0.8 0.9 0.0 1.0)
-            (,win9 0.9 1.0 0.0 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout)))
-    (should (seq-set-equal-p (cdr (assq win0 result)) '("q" "a" "z")))
-    (should (seq-set-equal-p (cdr (assq win1 result)) '("w" "s" "x")))
-    (should (seq-set-equal-p (cdr (assq win2 result)) '("e" "d" "c")))
-    (should (seq-set-equal-p (cdr (assq win3 result)) '("r" "f" "v")))
-    (should (seq-set-equal-p (cdr (assq win4 result)) '("t" "g" "b")))
-    (should (seq-set-equal-p (cdr (assq win5 result)) '("y" "h" "n")))
-    (should (seq-set-equal-p (cdr (assq win6 result)) '("u" "j" "m")))
-    (should (seq-set-equal-p (cdr (assq win7 result)) '("i" "k" ",")))
-    (should (seq-set-equal-p (cdr (assq win8 result)) '("o" "l" ".")))
-    (should (seq-set-equal-p (cdr (assq win9 result)) '("p" ";" "/")))))
+  "10 left-right windows = 10 keyboard columns, each gets 3 cells (1 col × 3 rows)."
+  (let* ((window-bounds
+          '((A 0.0 0.1 0.0 1.0) (B 0.1 0.2 0.0 1.0) (C 0.2 0.3 0.0 1.0)
+            (D 0.3 0.4 0.0 1.0) (E 0.4 0.5 0.0 1.0) (F 0.5 0.6 0.0 1.0)
+            (G 0.6 0.7 0.0 1.0) (H 0.7 0.8 0.0 1.0) (I 0.8 0.9 0.0 1.0)
+            (J 0.9 1.0 0.0 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("A B C D E F G H I J"
+                          "A B C D E F G H I J"
+                          "A B C D E F G H I J")))))
 
 ;;; ┌───────────────────┬─────────┐
 ;;; │  G  51w×48h       │         │
@@ -393,40 +290,21 @@ Sidebar-top steals 'p', extends to ';' via column consolidation; sidebar-bot ste
 ;;; Row 2: Z B D E E C C C C C
 
 (ert-deftest spatial-window-test-complex-spanning-layout ()
-  "Complex layout: 7 windows with multiple spanning. All must get keys.
+  "Complex layout: 7 windows with multiple spanning. All must get cells.
 Lower margin assigns more cells directly; small windows steal as needed."
-  (let* ((win-magit 'win-magit)
-         (win-claude 'win-claude)
-         (win-sw1 'win-sw1)
-         (win-sw2 'win-sw2)
-         (win-sw3 'win-sw3)
-         (win-sw4 'win-sw4)
-         (win-backtrace 'win-backtrace)
-         ;; Complex layout with spanning windows
-         (window-bounds
-          `((,win-magit 0.0 0.511 0.0 0.483)
-            (,win-claude 0.511 1.0 0.0 1.0)
-            (,win-sw1 0.0 0.066 0.483 0.725)
-            (,win-sw2 0.066 0.129 0.483 1.0)
-            (,win-sw3 0.129 0.255 0.483 1.0)
-            (,win-sw4 0.255 0.511 0.483 1.0)
-            (,win-backtrace 0.0 0.066 0.725 1.0)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout)))
-    ;; Magit (top-left ~51%) gets top row + middle row "s","d"
-    (should (seq-set-equal-p (cdr (assq win-magit result))
-                             '("q" "w" "e" "r" "t" "s" "d")))
-    ;; Claude (right half, full height) gets right columns
-    (should (seq-set-equal-p (cdr (assq win-claude result))
-                             '("y" "u" "i" "o" "p" "h" "j" "k" "l" ";" "n" "m" "," "." "/")))
-    ;; Small windows steal keys as needed
-    ;; sw4 loses "f","g" (y-dominance: sw4 vs magit near-50/50 y-split, x_diff=0)
-    (should (seq-set-equal-p (cdr (assq win-sw1 result)) '("a")))
-    (should (seq-set-equal-p (cdr (assq win-sw2 result)) '("x")))
-    (should (seq-set-equal-p (cdr (assq win-sw3 result)) '("c")))
-    (should (seq-set-equal-p (cdr (assq win-sw4 result)) '("v" "b")))
-    (should (seq-set-equal-p (cdr (assq win-backtrace result)) '("z")))))
+  (let* ((window-bounds
+          '((G 0.0 0.511 0.0 0.483)
+            (C 0.511 1.0 0.0 1.0)
+            (A 0.0 0.066 0.483 0.725)
+            (B 0.066 0.129 0.483 1.0)
+            (D 0.129 0.255 0.483 1.0)
+            (E 0.255 0.511 0.483 1.0)
+            (Z 0.0 0.066 0.725 1.0)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("G G G G G C C C C C"
+                          "A G G · · C C C C C"
+                          "Z B D E E C C C C C")))))
 
 ;;; ┌─────────────┬───────┐
 ;;; │             │       │
@@ -444,31 +322,15 @@ Lower margin assigns more cells directly; small windows steal as needed."
 (ert-deftest spatial-window-test-ide-layout-with-thin-panel ()
   "IDE layout: main editor + thin diff panel on left, claude on right.
 Diff panel is same width as main — row consolidation gives it the bottom row."
-  (let* ((win-main 'win-main)
-         (win-diff 'win-diff)
-         (win-claude 'win-claude)
-         ;; Real layout from user's Emacs session
-         ;; Left: 63%, Right: 37%
-         ;; Left split: 93% main / 5% diff panel (unbalanced)
-         (window-bounds
-          `((,win-main 0.0 0.63 0.0 0.93)
-            (,win-diff 0.0 0.63 0.93 0.985)
-            (,win-claude 0.63 1.0 0.0 0.985)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (main-keys (cdr (assq win-main result)))
-         (diff-keys (cdr (assq win-diff result)))
-         (claude-keys (cdr (assq win-claude result))))
-    ;; Main editor gets rows 1-2 of left columns
-    (should (seq-set-equal-p main-keys '("q" "w" "e" "r" "t" "y"
-                                          "a" "s" "d" "f" "g" "h")))
-    ;; Diff panel gets bottom row left via row consolidation (same column width)
-    (should (seq-set-equal-p diff-keys '("z" "x" "c" "v" "b" "n")))
-    ;; Claude window gets right columns including col 6 (u,j,m)
-    (should (seq-set-equal-p claude-keys '("u" "i" "o" "p"
-                                            "j" "k" "l" ";"
-                                            "m" "," "." "/")))))
+  (let* ((window-bounds
+          '((M 0.0 0.63 0.0 0.93)
+            (D 0.0 0.63 0.93 0.985)
+            (C 0.63 1.0 0.0 0.985)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("M M M M M M C C C C"
+                          "M M M M M M C C C C"
+                          "D D D D D D C C C C")))))
 
 ;;; ┌──┬────────────────────────────┐
 ;;; │T │                            │
@@ -487,31 +349,16 @@ Diff panel is same width as main — row consolidation gives it the bottom row."
 
 (ert-deftest spatial-window-test-extreme-narrow-left-column ()
   "Extreme narrow left column: 4% width split vertically, 96% right window.
-Top-left steals 'a' and extends to 'q' via column consolidation; bot-left steals 'z'; right gets 27."
-  (let* ((win-top-left 'win-top-left)
-         (win-bot-left 'win-bot-left)
-         (win-right 'win-right)
-         ;; Real layout from user's Emacs session
-         ;; Left column: 4.2% width, split 77%/22% vertically
-         ;; Right: 95.8% width, full height
-         (window-bounds
-          `((,win-top-left 0.001 0.042 0.002 0.769)
-            (,win-bot-left 0.001 0.042 0.769 0.985)
-            (,win-right 0.042 0.999 0.002 0.985)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (top-left-keys (cdr (assq win-top-left result)))
-         (bot-left-keys (cdr (assq win-bot-left result)))
-         (right-keys (cdr (assq win-right result))))
-    ;; Top-left steals "a" and extends to "q" (column consolidation)
-    (should (seq-set-equal-p top-left-keys '("q" "a")))
-    ;; Bot-left steals "z" (bottom row)
-    (should (seq-set-equal-p bot-left-keys '("z")))
-    ;; Right window gets 27 keys
-    (should (seq-set-equal-p right-keys '("w" "e" "r" "t" "y" "u" "i" "o" "p"
-                                          "s" "d" "f" "g" "h" "j" "k" "l" ";"
-                                          "x" "c" "v" "b" "n" "m" "," "." "/")))))
+Top-left extends via column consolidation; bot-left steals bottom-left cell."
+  (let* ((window-bounds
+          '((T 0.001 0.042 0.002 0.769)
+            (B 0.001 0.042 0.769 0.985)
+            (R 0.042 0.999 0.002 0.985)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("T R R R R R R R R R"
+                          "T R R R R R R R R R"
+                          "B R R R R R R R R R")))))
 
 ;;; ┌────────────────────────┬────────────────┐
 ;;; │  A  60w×50h            │  B  40w×50h    │
@@ -528,31 +375,16 @@ Top-left steals 'a' and extends to 'q' via column consolidation; bot-left steals
 (ert-deftest spatial-window-test-misaligned-vertical-splits ()
   "4 windows where top row split (60/40) differs from bottom row split (33/67).
 Middle row partially assigned where one window clearly dominates a cell."
-  (let* ((win-top-left 'win-top-left)
-         (win-top-right 'win-top-right)
-         (win-bot-left 'win-bot-left)
-         (win-bot-right 'win-bot-right)
-         ;; Top row: 60%/40% split, Bottom row: 33%/67% split
-         (window-bounds
-          `((,win-top-left 0.001 0.598 0.002 0.5)
-            (,win-top-right 0.598 0.999 0.002 0.5)
-            (,win-bot-left 0.001 0.327 0.5 0.985)
-            (,win-bot-right 0.327 0.999 0.5 0.985)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (top-left-keys (cdr (assq win-top-left result)))
-         (top-right-keys (cdr (assq win-top-right result)))
-         (bot-left-keys (cdr (assq win-bot-left result)))
-         (bot-right-keys (cdr (assq win-bot-right result))))
-    ;; Top-left (60%) gets top row + "f" from middle (clear overlap advantage)
-    (should (seq-set-equal-p top-left-keys '("q" "w" "e" "r" "t" "y" "f")))
-    ;; Top-right (40%) gets top row right + "i" from middle
-    (should (seq-set-equal-p top-right-keys '("u" "i" "o" "p")))
-    ;; Bot-left (33%) gets bottom row left
-    (should (seq-set-equal-p bot-left-keys '("z" "x" "c")))
-    ;; Bot-right (67%) gets bottom row right + "v" from middle
-    (should (seq-set-equal-p bot-right-keys '("v" "b" "n" "m" "," "." "/")))))
+  (let* ((window-bounds
+          '((A 0.001 0.598 0.002 0.5)
+            (B 0.598 0.999 0.002 0.5)
+            (C 0.001 0.327 0.5 0.985)
+            (D 0.327 0.999 0.5 0.985)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("A A A A A A B B B B"
+                          "· · · A · · · · · ·"
+                          "C C C D D D D D D D")))))
 
 ;;; ┌────┬─────────────────────────────┐
 ;;; │ N  │                             │
@@ -575,73 +407,17 @@ Middle row partially assigned where one window clearly dominates a cell."
 Y-dominance: code-wide vs posframe-top near-50/50 y-split at 0.487 leaves
 middle row mostly unassigned.  posframe-bot wins bottom row right (y-dominance
 over posframe-top)."
-  (let* ((win-posframe-top 'win-posframe-top)
-         (win-posframe-bot 'win-posframe-bot)
-         (win-code-narrow 'win-code-narrow)
-         (win-code-wide 'win-code-wide)
-         (win-magit 'win-magit)
-         ;; Actual bounds captured from Emacs session
-         (window-bounds
-          `((,win-posframe-top 0.3192982456140351 0.9988304093567252 0.48653846153846153 0.7423076923076923)
-            (,win-posframe-bot 0.3192982456140351 0.9988304093567252 0.7423076923076923 0.9846153846153847)
-            (,win-code-narrow 0.0011695906432748538 0.11052631578947368 0.0019230769230769232 0.48653846153846153)
-            (,win-code-wide 0.11052631578947368 0.9988304093567252 0.0019230769230769232 0.48653846153846153)
-            (,win-magit 0.0011695906432748538 0.3192982456140351 0.48653846153846153 0.9846153846153847)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (narrow-keys (cdr (assq win-code-narrow result)))
-         (wide-keys (cdr (assq win-code-wide result)))
-         (magit-keys (cdr (assq win-magit result)))
-         (posframe-top-keys (cdr (assq win-posframe-top result)))
-         (posframe-bot-keys (cdr (assq win-posframe-bot result)))
-         (all-keys (apply #'append (mapcar #'cdr result))))
-    ;; Narrow code window (11% width) steals "q"
-    (should (seq-set-equal-p narrow-keys '("q")))
-    ;; Wide code window (89% width, top) gets top row (minus "q")
-    (should (seq-set-equal-p wide-keys '("w" "e" "r" "t" "y" "u" "i" "o" "p")))
-    ;; Magit (32% width, bottom-left) gets left columns
-    (should (seq-set-equal-p magit-keys '("s" "z" "x" "c")))
-    ;; Posframe-top (keyless) steals middle row
-    (should (seq-set-equal-p posframe-top-keys '("f" "g" "h" "j" "k" "l" ";")))
-    ;; Posframe-bot wins bottom row right via y-dominance over posframe-top
-    (should (seq-set-equal-p posframe-bot-keys '("v" "b" "n" "m" "," "." "/")))
-    ;; All 5 windows have keys, 28 total, no duplicates
-    (should (= (length all-keys) 28))
-    (should (= (length all-keys) (length (delete-dups (copy-sequence all-keys)))))))
-
-(ert-deftest spatial-window-test-invalid-keyboard-layout ()
-  "Returns nil and displays message when keyboard layout rows have different lengths."
-  (let ((invalid-layout '(("q" "w" "e")
-                          ("a" "s")))
-        (dummy-grid (vector (vector 'w nil nil) (vector 'w nil nil)))
-        (messages nil))
-    (cl-letf (((symbol-function 'message)
-               (lambda (fmt &rest args) (push (apply #'format fmt args) messages))))
-      (let ((result (spatial-window--assignment-to-keys dummy-grid invalid-layout)))
-        (should (null result))
-        (should (cl-some (lambda (msg) (string-match-p "Invalid keyboard layout" msg)) messages))))))
-
-;;; Formatting tests
-
-(ert-deftest spatial-window-test-format-key-grid ()
-  "Format keys as keyboard grid shows assigned keys and dots for unassigned."
-  (let ((grid (spatial-window--format-key-grid '("q" "w" "e" "a" "s") spatial-window-test-layout)))
-    (should (= (length (split-string grid "\n")) 3))
-    (should (string-match-p "^q w e · · · · · · ·$" (car (split-string grid "\n"))))
-    (should (string-match-p "^a s · · · · · · · ·$" (nth 1 (split-string grid "\n"))))
-    (should (string-match-p "^· · · · · · · · · ·$" (nth 2 (split-string grid "\n"))))))
-
-(ert-deftest spatial-window-test-format-key-grid-empty ()
-  "Empty key list produces all dots."
-  (let ((grid (spatial-window--format-key-grid '() spatial-window-test-layout)))
-    (should (string-match-p "^· · · · · · · · · ·$" (car (split-string grid "\n"))))))
-
-(ert-deftest spatial-window-test-format-key-grid-all-keys ()
-  "All keys assigned shows full keyboard."
-  (let* ((all-keys (apply #'append spatial-window-test-layout))
-         (grid (spatial-window--format-key-grid all-keys spatial-window-test-layout)))
-    (should (string-match-p "^q w e r t y u i o p$" (car (split-string grid "\n"))))))
+  (let* ((window-bounds
+          '((P 0.3192982456140351 0.9988304093567252 0.48653846153846153 0.7423076923076923)
+            (Q 0.3192982456140351 0.9988304093567252 0.7423076923076923 0.9846153846153847)
+            (N 0.0011695906432748538 0.11052631578947368 0.0019230769230769232 0.48653846153846153)
+            (W 0.11052631578947368 0.9988304093567252 0.0019230769230769232 0.48653846153846153)
+            (G 0.0011695906432748538 0.3192982456140351 0.48653846153846153 0.9846153846153847)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("N W W W W W W W W W"
+                          "· G · P P P P P P P"
+                          "G G G Q Q Q Q Q Q Q")))))
 
 ;;; ┌──────────┬──────────┐
 ;;; │ A        │          │
@@ -662,35 +438,20 @@ over posframe-top)."
   "Full-width bottom panel should get the entire bottom row.
 The panel spans 100% width but only 16% height at the bottom.
 Row consolidation should extend it across all columns."
-  (let* ((win-log 'win-log)
-         (win-activities 'win-activities)
-         (win-magit 'win-magit)
-         (win-claude 'win-claude)
-         (window-bounds
-          `((,win-log        0.0011695906432748538 0.9988304093567252
-                             0.823076923076923 0.9846153846153847)
-            (,win-activities 0.0011695906432748538 0.5087719298245614
-                             0.015384615384615385 0.5259615384615385)
-            (,win-magit      0.0011695906432748538 0.5087719298245614
-                             0.5259615384615385 0.823076923076923)
-            (,win-claude     0.5087719298245614 0.9988304093567252
-                             0.015384615384615385 0.823076923076923)))
-         (result (spatial-window--assignment-to-keys
-                     (spatial-window--compute-assignment window-bounds)
-                     spatial-window-test-layout))
-         (log-keys (cdr (assq win-log result)))
-         (activities-keys (cdr (assq win-activities result)))
-         (magit-keys (cdr (assq win-magit result)))
-         (claude-keys (cdr (assq win-claude result))))
-    ;; elpaca-log spans full width — should get entire bottom row
-    (should (seq-set-equal-p log-keys '("z" "x" "c" "v" "b" "n" "m" "," "." "/")))
-    ;; activities: top row left
-    (should (seq-set-equal-p activities-keys '("q" "w" "e" "r" "t")))
-    ;; magit: middle row left
-    (should (seq-set-equal-p magit-keys '("a" "s" "d" "f" "g")))
-    ;; claude: right side, top + middle rows
-    (should (seq-set-equal-p claude-keys '("y" "u" "i" "o" "p"
-                                           "h" "j" "k" "l" ";")))))
+  (let* ((window-bounds
+          `((L 0.0011695906432748538 0.9988304093567252
+               0.823076923076923 0.9846153846153847)
+            (A 0.0011695906432748538 0.5087719298245614
+               0.015384615384615385 0.5259615384615385)
+            (M 0.0011695906432748538 0.5087719298245614
+               0.5259615384615385 0.823076923076923)
+            (C 0.5087719298245614 0.9988304093567252
+               0.015384615384615385 0.823076923076923)))
+         (grid (spatial-window--compute-assignment window-bounds))
+         (rows (spatial-window--grid-to-strings grid)))
+    (should (equal rows '("A A A A A C C C C C"
+                          "M M M M M C C C C C"
+                          "L L L L L L L L L L")))))
 
 (provide 'spatial-window-geometry-test)
 

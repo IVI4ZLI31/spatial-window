@@ -132,6 +132,70 @@ Returns alist of (extension-key . base-key)."
     ('colemak spatial-window-extensions-colemak)
     (_ nil)))
 
+;;; Frame introspection
+
+(defun spatial-window--window-bounds (&optional frame)
+  "Return window bounds for FRAME as list of (window x-start x-end y-start y-end).
+Coordinates are normalized to 0.0-1.0 range relative to frame size."
+  (let* ((frame (or frame (selected-frame)))
+         (frame-w (float (frame-pixel-width frame)))
+         (frame-h (float (frame-pixel-height frame)))
+         (windows (window-list frame 'no-minibuf)))
+    (mapcar (lambda (w)
+              (let ((edges (window-pixel-edges w)))
+                (list w
+                      (/ (nth 0 edges) frame-w)   ; x-start
+                      (/ (nth 2 edges) frame-w)   ; x-end
+                      (/ (nth 1 edges) frame-h)   ; y-start
+                      (/ (nth 3 edges) frame-h)))) ; y-end
+            windows)))
+
+;;; Layout-dependent key mapping
+
+(defun spatial-window--final-to-keys (final kbd-rows kbd-cols kbd-layout)
+  "Convert FINAL assignment grid to alist of (window . keys).
+KBD-ROWS and KBD-COLS define grid dimensions, KBD-LAYOUT maps to key strings."
+  (let ((result (make-hash-table :test 'eq)))
+    (dotimes (row kbd-rows)
+      (dotimes (col kbd-cols)
+        (let ((win (aref (aref final row) col)))
+          (when win
+            (push (nth col (nth row kbd-layout)) (gethash win result))))))
+    ;; Convert to alist with reversed key lists
+    (let ((alist nil))
+      (maphash (lambda (win keys)
+                 (push (cons win (nreverse keys)) alist))
+               result)
+      alist)))
+
+(defun spatial-window--assignment-to-keys (grid kbd-layout)
+  "Map assignment GRID to keyboard keys using KBD-LAYOUT.
+GRID is the 2D vector returned by `spatial-window--compute-assignment'.
+KBD-LAYOUT is the keyboard layout (list of rows of key strings).
+Returns alist of (window . (list of keys)), or nil if layout is invalid."
+  (if (not (apply #'= (mapcar #'length kbd-layout)))
+      (progn
+        (message "Invalid keyboard layout: rows have different lengths")
+        nil)
+    (let ((kbd-rows (length kbd-layout))
+          (kbd-cols (length (car kbd-layout))))
+      (spatial-window--final-to-keys grid kbd-rows kbd-cols kbd-layout))))
+
+(defun spatial-window--format-key-grid (keys kbd-layout)
+  "Format KEYS as a keyboard grid string using KBD-LAYOUT.
+Returns a string showing which keys are assigned, displayed in keyboard layout."
+  (let ((key-set (make-hash-table :test 'equal)))
+    (dolist (k keys)
+      (puthash k t key-set))
+    (mapconcat
+     (lambda (row)
+       (mapconcat
+        (lambda (key)
+          (if (gethash key key-set) key "·"))
+        row " "))
+     kbd-layout
+     "\n")))
+
 (defface spatial-window-overlay-face
   '((t (:foreground "red" :background "white" :weight bold)))
   "Face for spatial-window key overlay."

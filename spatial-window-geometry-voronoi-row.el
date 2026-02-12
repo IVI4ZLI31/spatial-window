@@ -40,25 +40,6 @@ When the ratio exceeds this threshold, the cell is ambiguous and left
 unassigned.  0.75 corresponds to a ~57/43 split threshold, matching
 the production algorithm's y-dominance margin.")
 
-(defun spatial-window--frame-windows ()
-  "Return list of windows in current frame, excluding minibuffer."
-  (window-list nil 'no-minibuf))
-
-(defun spatial-window--window-bounds (&optional frame)
-  "Return window bounds for FRAME as list of (window x-start x-end y-start y-end)."
-  (let* ((frame (or frame (selected-frame)))
-         (frame-w (float (frame-pixel-width frame)))
-         (frame-h (float (frame-pixel-height frame)))
-         (windows (window-list frame 'no-minibuf)))
-    (mapcar (lambda (w)
-              (let ((edges (window-pixel-edges w)))
-                (list w
-                      (/ (nth 0 edges) frame-w)
-                      (/ (nth 2 edges) frame-w)
-                      (/ (nth 1 edges) frame-h)
-                      (/ (nth 3 edges) frame-h))))
-            windows)))
-
 (defun spatial-window--window-centroid (wb)
   "Return centroid (x . y) of window bounds WB."
   (cons (/ (+ (nth 1 wb) (nth 2 wb)) 2.0)
@@ -191,20 +172,6 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
                     (puthash old-owner (1- (gethash old-owner counts 0)) counts))
                   (setq changed t))))))))))
 
-(defun spatial-window--final-to-keys (final kbd-rows kbd-cols kbd-layout)
-  "Convert FINAL assignment grid to alist of (window . keys)."
-  (let ((result (make-hash-table :test 'eq)))
-    (dotimes (row kbd-rows)
-      (dotimes (col kbd-cols)
-        (let ((win (aref (aref final row) col)))
-          (when win
-            (push (nth col (nth row kbd-layout)) (gethash win result))))))
-    (let ((alist nil))
-      (maphash (lambda (win keys)
-                 (push (cons win (nreverse keys)) alist))
-               result)
-      alist)))
-
 (defun spatial-window--compute-assignment (window-bounds)
   "Compute spatial grid assignment for WINDOW-BOUNDS.
 Uses a hardcoded 3×10 grid matching all supported keyboard topologies.
@@ -222,19 +189,6 @@ Returns nil with message if more than 30 windows."
          final kbd-rows kbd-cols window-bounds)
         final))))
 
-(defun spatial-window--assignment-to-keys (grid kbd-layout)
-  "Map assignment GRID to keyboard keys using KBD-LAYOUT.
-GRID is the 2D vector returned by `spatial-window--compute-assignment'.
-KBD-LAYOUT is the keyboard layout (list of rows of key strings).
-Returns alist of (window . (list of keys)), or nil if layout is invalid."
-  (if (not (apply #'= (mapcar #'length kbd-layout)))
-      (progn
-        (message "Invalid keyboard layout: rows have different lengths")
-        nil)
-    (let ((kbd-rows (length kbd-layout))
-          (kbd-cols (length (car kbd-layout))))
-      (spatial-window--final-to-keys grid kbd-rows kbd-cols kbd-layout))))
-
 (defun spatial-window--grid-to-strings (grid)
   "Convert assignment GRID to list of space-separated label strings.
 Each cell renders as the window's symbol-name, or · for nil."
@@ -246,20 +200,6 @@ Each cell renders as the window's symbol-name, or · for nil."
             (push (if win (symbol-name win) "·") cells)))
         (push (mapconcat #'identity (nreverse cells) " ") result)))
     (nreverse result)))
-
-(defun spatial-window--format-key-grid (keys kbd-layout)
-  "Format KEYS as a keyboard grid string using KBD-LAYOUT."
-  (let ((key-set (make-hash-table :test 'equal)))
-    (dolist (k keys)
-      (puthash k t key-set))
-    (mapconcat
-     (lambda (row)
-       (mapconcat
-        (lambda (key)
-          (if (gethash key key-set) key "·"))
-        row " "))
-     kbd-layout
-     "\n")))
 
 (provide 'spatial-window-geometry-voronoi-row)
 
