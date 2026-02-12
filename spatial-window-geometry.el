@@ -32,9 +32,6 @@
 
 (require 'cl-lib)
 
-;; Forward declaration for layout accessor
-(defvar spatial-window-keyboard-layout)
-(declare-function spatial-window--get-layout "spatial-window")
 
 ;;; Utilities
 
@@ -321,20 +318,13 @@ KBD-ROWS and KBD-COLS define grid dimensions, KBD-LAYOUT maps to key strings."
                result)
       alist)))
 
-(defun spatial-window--assign-keys (&optional frame window-bounds kbd-layout)
+(defun spatial-window--assign-keys (kbd-layout &optional frame window-bounds)
   "Assign keyboard keys to windows based on spatial overlap.
 Returns alist of (window . (list of keys)).
 
-Optional arguments allow dependency injection for testing:
-  FRAME - frame to use for window bounds
-  WINDOW-BOUNDS - list of (window x-start x-end y-start y-end)
-  KBD-LAYOUT - keyboard layout as list of rows
-
-Algorithm:
-1. For each cell, assign to best-overlapping window if it wins by margin
-2. Ensure every window has at least one key (steal if needed)
-3. Convert grid to key lists"
-  (let ((kbd-layout (or kbd-layout (spatial-window--get-layout))))
+KBD-LAYOUT is the keyboard layout as list of rows (required).
+Optional FRAME and WINDOW-BOUNDS allow dependency injection for testing."
+  (let ((kbd-layout kbd-layout))
     ;; Validate keyboard layout: all rows must have same length
     (if (not (apply #'= (mapcar #'length kbd-layout)))
         (progn
@@ -356,8 +346,8 @@ Algorithm:
 
 ;;; Formatting utilities
 
-(defun spatial-window--format-key-grid (keys)
-  "Format KEYS as a keyboard grid string.
+(defun spatial-window--format-key-grid (keys kbd-layout)
+  "Format KEYS as a keyboard grid string using KBD-LAYOUT.
 Returns a string showing which keys are assigned, displayed in keyboard layout."
   (let ((key-set (make-hash-table :test 'equal)))
     (dolist (k keys)
@@ -368,7 +358,7 @@ Returns a string showing which keys are assigned, displayed in keyboard layout."
         (lambda (key)
           (if (gethash key key-set) key "·"))
         row " "))
-     (spatial-window--get-layout)
+     kbd-layout
      "\n")))
 
 (provide 'spatial-window-geometry)

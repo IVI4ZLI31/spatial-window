@@ -31,9 +31,6 @@
 
 (require 'cl-lib)
 
-(defvar spatial-window-keyboard-layout)
-(declare-function spatial-window--get-layout "spatial-window")
-
 (defconst spatial-window--row-overlap-min 0.6
   "Minimum vertical overlap (fraction of cell height) to be eligible for a row.")
 
@@ -182,9 +179,10 @@
                result)
       alist)))
 
-(defun spatial-window--assign-keys (&optional frame window-bounds kbd-layout)
-  "Assign keyboard keys to windows based on row-gated Voronoi."
-  (let ((kbd-layout (or kbd-layout (spatial-window--get-layout))))
+(defun spatial-window--assign-keys (kbd-layout &optional frame window-bounds)
+  "Assign keyboard keys to windows based on row-gated Voronoi.
+KBD-LAYOUT is the keyboard layout as list of rows (required)."
+  (let ((kbd-layout kbd-layout))
     (if (not (apply #'= (mapcar #'length kbd-layout)))
         (progn
           (message "Invalid keyboard layout: rows have different lengths")
@@ -202,8 +200,8 @@
              final kbd-rows kbd-cols window-bounds)
             (spatial-window--final-to-keys final kbd-rows kbd-cols kbd-layout)))))))
 
-(defun spatial-window--format-key-grid (keys)
-  "Format KEYS as a keyboard grid string."
+(defun spatial-window--format-key-grid (keys kbd-layout)
+  "Format KEYS as a keyboard grid string using KBD-LAYOUT."
   (let ((key-set (make-hash-table :test 'equal)))
     (dolist (k keys)
       (puthash k t key-set))
@@ -213,7 +211,7 @@
         (lambda (key)
           (if (gethash key key-set) key "·"))
         row " "))
-     (spatial-window--get-layout)
+     kbd-layout
      "\n")))
 
 (provide 'spatial-window-geometry-voronoi-row)

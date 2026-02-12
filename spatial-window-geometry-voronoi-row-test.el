@@ -2,27 +2,18 @@
 
 ;;; Commentary:
 ;; ERT tests for spatial-window-geometry-voronoi-row.el
-;; NOTE: We do NOT require spatial-window.el because it hardcodes
-;; (require 'spatial-window-geometry) which would overwrite the voronoi functions.
-;; Instead, we inline spatial-window--get-layout and the layout constant.
+;; Fully isolated from spatial-window.el — layout is passed explicitly.
 
 ;;; Code:
 
 (require 'ert)
 (require 'spatial-window-geometry-voronoi-row)
 
-;; Inline layout definition (avoids loading spatial-window.el which pulls in production geometry)
-(defconst spatial-window-layout-qwerty
+(defconst spatial-window-test-layout
   '(("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
     ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")
     ("z" "x" "c" "v" "b" "n" "m" "," "." "/"))
-  "QWERTY keyboard layout.")
-
-(setq spatial-window-keyboard-layout 'qwerty)
-
-(defun spatial-window--get-layout ()
-  "Return the keyboard layout as a list of rows."
-  spatial-window-layout-qwerty)
+  "QWERTY layout for tests.")
 
 ;;; Key assignment tests
 
@@ -40,9 +31,9 @@
 (ert-deftest spatial-window-voronoi-row-test-assign-keys-single-window ()
   "Single window gets all keys."
   (let* ((win 'win)
-         (all-keys (apply #'append (spatial-window--get-layout)))
+         (all-keys (apply #'append spatial-window-test-layout))
          (window-bounds `((,win 0.0 1.0 0.0 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (keys (cdr (assq win result))))
     (should (seq-set-equal-p keys all-keys))))
 
@@ -63,7 +54,7 @@
          (win-right 'win-right)
          (window-bounds `((,win-left 0.0 0.5 0.0 1.0)
                           (,win-right 0.5 1.0 0.0 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (left-keys (cdr (assq win-left result)))
          (right-keys (cdr (assq win-right result))))
     (should (seq-set-equal-p left-keys '("q" "w" "e" "r" "t"
@@ -96,7 +87,7 @@ the entire middle row.  Left windows get only top and bottom rows."
          (window-bounds `((,win-top-left 0.0 0.5 0.0 0.5)
                           (,win-bottom-left 0.0 0.5 0.5 1.0)
                           (,win-right 0.5 1.0 0.0 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (right-keys (cdr (assq win-right result)))
          (top-left-keys (cdr (assq win-top-left result)))
          (bottom-left-keys (cdr (assq win-bottom-left result))))
@@ -135,7 +126,7 @@ area-weighted distance — its large area pulls cells toward it."
           `((,win-claude 0.5894736842105263 0.9988304093567252 0.0019230769230769232 0.9846153846153847)
             (,win-magit-rev 0.0011695906432748538 0.5894736842105263 0.0019230769230769232 0.4855769230769231)
             (,win-magit 0.0011695906432748538 0.5894736842105263 0.4855769230769231 0.9846153846153847)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (claude-keys (cdr (assq win-claude result)))
          (magit-rev-keys (cdr (assq win-magit-rev result)))
          (magit-keys (cdr (assq win-magit result))))
@@ -182,7 +173,7 @@ Journal (small, middle-left) steals only 'f'."
                           0.0019230769230769232 0.49903846153846154)
             (,win-journal 0.0011695906432748538 0.5894736842105263
                           0.49903846153846154 0.7423076923076923)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (spatial-keys (cdr (assq win-spatial result)))
          (claude-keys (cdr (assq win-claude result)))
          (journal-keys (cdr (assq win-journal result)))
@@ -218,7 +209,7 @@ split away from exactly 50%."
              (win-top 'win-top) (win-bot 'win-bot)
              (window-bounds `((,win-top 0.0 1.0 0.0 ,mid)
                               (,win-bot 0.0 1.0 ,mid 1.0)))
-             (result (spatial-window--assign-keys nil window-bounds))
+             (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
              (bot-keys (cdr (assq win-bot result))))
         (if (= (length bot-keys) 20)
             (setq lo mid)
@@ -256,7 +247,7 @@ in rows 0/2 but 4 cols in row 1.  Right gets 2 cols in rows 0/2 but 6 in row 1."
                           (,win-mid-top 0.2 0.7 0.0 0.5)
                           (,win-mid-bot 0.2 0.7 0.5 1.0)
                           (,win-right 0.7 1.0 0.0 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (left-keys (cdr (assq win-left result)))
          (mid-top-keys (cdr (assq win-mid-top result)))
          (mid-bot-keys (cdr (assq win-mid-bot result)))
@@ -297,7 +288,7 @@ No column consolidation — each sidebar window gets exactly 1 key."
          (window-bounds `((,win-main 0.0 0.955 0.0 1.0)
                           (,win-sidebar-top 0.955 1.0 0.0 0.92)
                           (,win-sidebar-bot 0.955 1.0 0.92 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (main-keys (cdr (assq win-main result)))
          (top-keys (cdr (assq win-sidebar-top result)))
          (bot-keys (cdr (assq win-sidebar-bot result))))
@@ -329,7 +320,7 @@ No column consolidation — each sidebar window gets exactly 1 key."
          (window-bounds `((,win1 0.0 1.0 0.0 0.33)
                           (,win2 0.0 1.0 0.33 0.67)
                           (,win3 0.0 1.0 0.67 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds)))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds)))
     (should (seq-set-equal-p (cdr (assq win1 result))
                              '("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")))
     (should (seq-set-equal-p (cdr (assq win2 result))
@@ -357,7 +348,7 @@ No column consolidation — each sidebar window gets exactly 1 key."
             (,win3 0.3 0.4 0.0 1.0) (,win4 0.4 0.5 0.0 1.0) (,win5 0.5 0.6 0.0 1.0)
             (,win6 0.6 0.7 0.0 1.0) (,win7 0.7 0.8 0.0 1.0) (,win8 0.8 0.9 0.0 1.0)
             (,win9 0.9 1.0 0.0 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds)))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds)))
     (should (seq-set-equal-p (cdr (assq win0 result)) '("q" "a" "z")))
     (should (seq-set-equal-p (cdr (assq win1 result)) '("w" "s" "x")))
     (should (seq-set-equal-p (cdr (assq win2 result)) '("e" "d" "c")))
@@ -407,7 +398,7 @@ sw4 gets 3 keys (row 2 cols 3-5) vs production's 2."
             (,win-sw3 0.129 0.255 0.483 1.0)
             (,win-sw4 0.255 0.511 0.483 1.0)
             (,win-backtrace 0.0 0.066 0.725 1.0)))
-         (result (spatial-window--assign-keys nil window-bounds)))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds)))
     ;; Magit (top-left ~51%) gets top row only
     (should (seq-set-equal-p (cdr (assq win-magit result))
                              '("q" "w" "e" "r" "t")))
@@ -450,7 +441,7 @@ No row consolidation: main keeps most of bottom row."
           `((,win-main 0.0 0.63 0.0 0.93)
             (,win-diff 0.0 0.63 0.93 0.985)
             (,win-claude 0.63 1.0 0.0 0.985)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (main-keys (cdr (assq win-main result)))
          (diff-keys (cdr (assq win-diff result)))
          (claude-keys (cdr (assq win-claude result))))
@@ -494,7 +485,7 @@ right window gets all of row 0 plus 28 total keys."
           `((,win-top-left 0.001 0.042 0.002 0.769)
             (,win-bot-left 0.001 0.042 0.769 0.985)
             (,win-right 0.042 0.999 0.002 0.985)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (top-left-keys (cdr (assq win-top-left result)))
          (bot-left-keys (cdr (assq win-bot-left result)))
          (right-keys (cdr (assq win-right result))))
@@ -533,7 +524,7 @@ top-right gets rightmost 1."
             (,win-top-right 0.598 0.999 0.002 0.5)
             (,win-bot-left 0.001 0.327 0.5 0.985)
             (,win-bot-right 0.327 0.999 0.5 0.985)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (top-left-keys (cdr (assq win-top-left result)))
          (top-right-keys (cdr (assq win-top-right result)))
          (bot-left-keys (cdr (assq win-bot-left result)))
@@ -581,7 +572,7 @@ middle row cells; posframe-top gets 4 keys; posframe-bot gets bottom row right."
             (,win-code-narrow 0.0011695906432748538 0.11052631578947368 0.0019230769230769232 0.48653846153846153)
             (,win-code-wide 0.11052631578947368 0.9988304093567252 0.0019230769230769232 0.48653846153846153)
             (,win-magit 0.0011695906432748538 0.3192982456140351 0.48653846153846153 0.9846153846153847)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (narrow-keys (cdr (assq win-code-narrow result)))
          (wide-keys (cdr (assq win-code-wide result)))
          (magit-keys (cdr (assq win-magit result)))
@@ -610,7 +601,7 @@ middle row cells; posframe-top gets 4 keys; posframe-bot gets bottom row right."
         (messages nil))
     (cl-letf (((symbol-function 'message)
                (lambda (fmt &rest args) (push (apply #'format fmt args) messages))))
-      (let ((result (spatial-window--assign-keys nil nil invalid-layout)))
+      (let ((result (spatial-window--assign-keys invalid-layout)))
         (should (null result))
         (should (cl-some (lambda (msg) (string-match-p "Invalid keyboard layout" msg)) messages))))))
 
@@ -618,7 +609,7 @@ middle row cells; posframe-top gets 4 keys; posframe-bot gets bottom row right."
 
 (ert-deftest spatial-window-voronoi-row-test-format-key-grid ()
   "Format keys as keyboard grid shows assigned keys and dots for unassigned."
-  (let ((grid (spatial-window--format-key-grid '("q" "w" "e" "a" "s"))))
+  (let ((grid (spatial-window--format-key-grid '("q" "w" "e" "a" "s") spatial-window-test-layout)))
     (should (= (length (split-string grid "\n")) 3))
     (should (string-match-p "^q w e · · · · · · ·$" (car (split-string grid "\n"))))
     (should (string-match-p "^a s · · · · · · · ·$" (nth 1 (split-string grid "\n"))))
@@ -626,13 +617,13 @@ middle row cells; posframe-top gets 4 keys; posframe-bot gets bottom row right."
 
 (ert-deftest spatial-window-voronoi-row-test-format-key-grid-empty ()
   "Empty key list produces all dots."
-  (let ((grid (spatial-window--format-key-grid '())))
+  (let ((grid (spatial-window--format-key-grid '() spatial-window-test-layout)))
     (should (string-match-p "^· · · · · · · · · ·$" (car (split-string grid "\n"))))))
 
 (ert-deftest spatial-window-voronoi-row-test-format-key-grid-all-keys ()
   "All keys assigned shows full keyboard."
-  (let* ((all-keys (apply #'append (spatial-window--get-layout)))
-         (grid (spatial-window--format-key-grid all-keys)))
+  (let* ((all-keys (apply #'append spatial-window-test-layout))
+         (grid (spatial-window--format-key-grid all-keys spatial-window-test-layout)))
     (should (string-match-p "^q w e r t y u i o p$" (car (split-string grid "\n"))))))
 
 ;;; ┌──────────┬──────────┐
@@ -668,7 +659,7 @@ No row consolidation for log despite spanning full width."
                              0.5259615384615385 0.823076923076923)
             (,win-claude     0.5087719298245614 0.9988304093567252
                              0.015384615384615385 0.823076923076923)))
-         (result (spatial-window--assign-keys nil window-bounds))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
          (log-keys (cdr (assq win-log result)))
          (activities-keys (cdr (assq win-activities result)))
          (magit-keys (cdr (assq win-magit result)))

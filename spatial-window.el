@@ -188,7 +188,7 @@ Returns non-nil if overlays were shown, nil if no assignments."
       (dolist (pair assignments)
         (let* ((window (car pair))
                (keys (cdr pair))
-               (grid-str (spatial-window--format-key-grid keys))
+               (grid-str (spatial-window--format-key-grid keys (spatial-window--get-layout)))
                (buf-name (format " *spatial-window-%d*" idx))
                (edges (window-pixel-edges window))
                (x (nth 0 edges))
@@ -326,7 +326,7 @@ HIGHLIGHTED is a list of windows to highlight in overlays.
 MESSAGE is displayed in the minibuffer."
   (require 'posframe)
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys)
+    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys (spatial-window--get-layout))
           (spatial-window--state-highlighted-windows st) highlighted)
     (when (spatial-window--state-assignments st)
       (setf (spatial-window--state-selection-active st) t)
@@ -512,7 +512,7 @@ different window, avoiding an extra deselect step."
 (defun spatial-window--history-refresh ()
   "Recompute assignments and refresh overlays after history navigation."
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys))
+    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys (spatial-window--get-layout)))
     (when (spatial-window--state-overlays-visible st)
       (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
     (message "%s" (spatial-window--unified-mode-message))))
