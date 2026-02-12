@@ -8,7 +8,6 @@
 
 (require 'ert)
 (require 'spatial-window-geometry-voronoi-row)
-(require 'spatial-window-test-helper)
 
 (defconst spatial-window-test-layout
   '(("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
@@ -51,16 +50,19 @@
 
 (ert-deftest spatial-window-voronoi-row-test-assign-keys-2-columns ()
   "2 left-right windows: each gets half columns, all rows."
-  (let* ((window-bounds '((win-left 0.0 0.5 0.0 1.0)
-                          (win-right 0.5 1.0 0.0 1.0)))
-         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds)))
-    (spatial-window-test-assert-grid
-     result
-     '(("L" . win-left) ("R" . win-right))
-     "L L L L L R R R R R
-      L L L L L R R R R R
-      L L L L L R R R R R"
-     spatial-window-test-layout)))
+  (let* ((win-left 'win-left)
+         (win-right 'win-right)
+         (window-bounds `((,win-left 0.0 0.5 0.0 1.0)
+                          (,win-right 0.5 1.0 0.0 1.0)))
+         (result (spatial-window--assign-keys spatial-window-test-layout nil window-bounds))
+         (left-keys (cdr (assq win-left result)))
+         (right-keys (cdr (assq win-right result))))
+    (should (seq-set-equal-p left-keys '("q" "w" "e" "r" "t"
+                                         "a" "s" "d" "f" "g"
+                                         "z" "x" "c" "v" "b")))
+    (should (seq-set-equal-p right-keys '("y" "u" "i" "o" "p"
+                                          "h" "j" "k" "l" ";"
+                                          "n" "m" "," "." "/")))))
 
 ;;; ┌──────────┬──────────┐
 ;;; │ T        │          │
