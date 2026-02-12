@@ -2,6 +2,7 @@
 
 Updated: 2026-02-12
 Branch reference: `codex/algorithm-analysis`
+Current default algorithm: row-gated Voronoi (`spatial-window-geometry.el`)
 
 **Variables**
 - `R` = keyboard rows

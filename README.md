@@ -93,6 +93,13 @@ The purpose is purely to absorb overshoot, not to add spatial resolution.
 
 `M-x customize-group RET spatial-window RET`
 
+## Algorithm
+
+spatial-window uses a row-gated Voronoi mapping so key regions stay spatially
+intuitive while discouraging cross-row leakage. For a deeper comparison of
+alternative mappings and their complexity, see
+`docs/algorithm.md` and `docs/algorithm-complexity-summary.md`.
+
 ### Keyboard Layout
 
 Presets: `qwerty` (default), `dvorak`, `colemak`
