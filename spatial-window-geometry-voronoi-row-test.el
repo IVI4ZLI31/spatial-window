@@ -507,13 +507,13 @@ right window gets all of row 0 plus 28 total keys."
 ;;; A=top-left  B=top-right  C=bot-left  D=bot-right
 ;;;
 ;;; Row 0: A A A A A A B B B B
-;;; Row 1: A A A A A D D D D B  ← voronoi: middle row assigned via centroids
+;;; Row 1: · · · A · D D D D ·  ← ambiguity: a/s contested (A/C stacked), l/; contested (B/D stacked)
 ;;; Row 2: C C C C D D D D D D
 
 (ert-deftest spatial-window-voronoi-row-test-misaligned-vertical-splits ()
   "4 windows where top row split (60/40) differs from bottom row split (33/67).
-Voronoi: middle row fully assigned — top-left gets left 5, bot-right gets middle 4,
-top-right gets rightmost 1."
+Voronoi: middle row partially assigned — boundary cells left unassigned where
+vertically-stacked windows have similar scores."
   (let* ((win-top-left 'win-top-left)
          (win-top-right 'win-top-right)
          (win-bot-left 'win-bot-left)
@@ -529,15 +529,18 @@ top-right gets rightmost 1."
          (top-right-keys (cdr (assq win-top-right result)))
          (bot-left-keys (cdr (assq win-bot-left result)))
          (bot-right-keys (cdr (assq win-bot-right result))))
-    ;; Top-left (60%) gets top row left 6 + middle row left 5 = 11 keys
+    ;; Top-left (60%) gets top row left 6 + middle d,f,g = 9 keys
+    ;; a,s left unassigned (top-left vs bot-left ambiguous — vertically stacked)
     (should (seq-set-equal-p top-left-keys '("q" "w" "e" "r" "t" "y"
-                                              "a" "s" "d" "f" "g")))
-    ;; Top-right (40%) gets top row right 4 + middle ";" = 5 keys
-    (should (seq-set-equal-p top-right-keys '("u" "i" "o" "p" ";")))
+                                              "d" "f" "g")))
+    ;; Top-right (40%) gets top row right 4 only
+    ;; ";" left unassigned (top-right vs bot-right ambiguous)
+    (should (seq-set-equal-p top-right-keys '("u" "i" "o" "p")))
     ;; Bot-left (33%) gets bottom row left 4
     (should (seq-set-equal-p bot-left-keys '("z" "x" "c" "v")))
-    ;; Bot-right (67%) gets middle row 4 + bottom row right 6 = 10 keys
-    (should (seq-set-equal-p bot-right-keys '("h" "j" "k" "l"
+    ;; Bot-right (67%) gets middle h,j,k + bottom row right 6 = 9 keys
+    ;; "l" left unassigned (top-right vs bot-right ambiguous)
+    (should (seq-set-equal-p bot-right-keys '("h" "j" "k"
                                                "b" "n" "m" "," "." "/")))))
 
 ;;; ┌────┬─────────────────────────────┐
@@ -553,13 +556,13 @@ top-right gets rightmost 1."
 ;;; N=code-narrow  W=code-wide  G=magit  P=posframe-top  Q=posframe-bot
 ;;;
 ;;; Row 0: N N W W W W W W W W
-;;; Row 1: G G W W W P P P P W  ← voronoi: code-wide gets d,f,g + ";"; posframe-top gets h,j,k,l
+;;; Row 1: G G · · W P · · · ·  ← ambiguity: code-wide vs posframe-top near-50/50 y-split
 ;;; Row 2: G G G G Q Q Q Q Q Q
 
 (ert-deftest spatial-window-voronoi-row-test-real-dev-session-layout ()
   "Real 5-window layout: narrow code window, wide code, magit, two posframes.
-Voronoi: code-narrow gets 2 keys (q,w); code-wide gets top row + scattered
-middle row cells; posframe-top gets 4 keys; posframe-bot gets bottom row right."
+Voronoi: code-wide vs posframe-top near-50/50 y-split at 0.487 leaves most of
+middle row unassigned.  posframe-top steals j,k to ensure it has keys."
   (let* ((win-posframe-top 'win-posframe-top)
          (win-posframe-bot 'win-posframe-bot)
          (win-code-narrow 'win-code-narrow)
@@ -581,17 +584,18 @@ middle row cells; posframe-top gets 4 keys; posframe-bot gets bottom row right."
          (all-keys (apply #'append (mapcar #'cdr result))))
     ;; Narrow code window gets "q","w"
     (should (seq-set-equal-p narrow-keys '("q" "w")))
-    ;; Wide code window: top row (minus q,w) + middle d,f,g,;
+    ;; Wide code window: top row (minus q,w) + middle f,g only
+    ;; d,h,l,; left unassigned (code-wide vs posframe-top/magit ambiguous)
     (should (seq-set-equal-p wide-keys '("e" "r" "t" "y" "u" "i" "o" "p"
-                                          "d" "f" "g" ";")))
+                                          "f" "g")))
     ;; Magit (32% width, bottom-left): middle a,s + bottom z,x,c,v
     (should (seq-set-equal-p magit-keys '("a" "s" "z" "x" "c" "v")))
-    ;; Posframe-top: middle h,j,k,l
-    (should (seq-set-equal-p posframe-top-keys '("h" "j" "k" "l")))
+    ;; Posframe-top: steals j,k (best overlap for keyless window)
+    (should (seq-set-equal-p posframe-top-keys '("j" "k")))
     ;; Posframe-bot: bottom row right
     (should (seq-set-equal-p posframe-bot-keys '("b" "n" "m" "," "." "/")))
-    ;; All 5 windows have keys, 30 total, no duplicates
-    (should (= (length all-keys) 30))
+    ;; All 5 windows have keys, 26 total (4 unassigned), no duplicates
+    (should (= (length all-keys) 26))
     (should (= (length all-keys) (length (delete-dups (copy-sequence all-keys)))))))
 
 (ert-deftest spatial-window-voronoi-row-test-invalid-keyboard-layout ()
@@ -639,13 +643,13 @@ middle row cells; posframe-top gets 4 keys; posframe-bot gets bottom row right."
 ;;;
 ;;; Row 0: A A A A A C C C C C
 ;;; Row 1: C C C C C C C C C C  ← voronoi: claude (large area) wins entire middle row
-;;; Row 2: G G G L L L L L C C  ← log gets partial bottom row; claude extends right
+;;; Row 2: M M M · L L L · C C  ← ambiguity at log/magit and log/claude boundaries
 
 (ert-deftest spatial-window-voronoi-row-test-full-width-bottom-panel ()
   "Full-width bottom panel (16% height).
 Voronoi: claude (large area, full right) wins entire middle row.  Log panel
-gets only 5 keys in bottom row.  Magit gets 3 keys in bottom-left.
-No row consolidation for log despite spanning full width."
+gets 3 keys in bottom row center — boundary cells left unassigned where log
+competes with vertically-stacked magit/claude at similar scores."
   (let* ((win-log 'win-log)
          (win-activities 'win-activities)
          (win-magit 'win-magit)
@@ -664,8 +668,8 @@ No row consolidation for log despite spanning full width."
          (activities-keys (cdr (assq win-activities result)))
          (magit-keys (cdr (assq win-magit result)))
          (claude-keys (cdr (assq win-claude result))))
-    ;; elpaca-log: partial bottom row (5 keys)
-    (should (seq-set-equal-p log-keys '("v" "b" "n" "m" ",")))
+    ;; elpaca-log: 3 keys in bottom row center (boundary cells ambiguous)
+    (should (seq-set-equal-p log-keys '("b" "n" "m")))
     ;; activities: top row left
     (should (seq-set-equal-p activities-keys '("q" "w" "e" "r" "t")))
     ;; magit: bottom-left 3 keys

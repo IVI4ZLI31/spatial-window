@@ -34,6 +34,12 @@
 (defconst spatial-window--row-overlap-min 0.6
   "Minimum vertical overlap (fraction of cell height) to be eligible for a row.")
 
+(defconst spatial-window--voronoi-ambiguity-ratio 0.75
+  "Maximum best/second-best score ratio for a cell to be assigned.
+When the ratio exceeds this threshold, the cell is ambiguous and left
+unassigned.  0.75 corresponds to a ~57/43 split threshold, matching
+the production algorithm's y-dominance margin.")
+
 (defun spatial-window--frame-windows ()
   "Return list of windows in current frame, excluding minibuffer."
   (window-list nil 'no-minibuf))
@@ -74,7 +80,10 @@
     (/ y-overlap-size cell-h)))
 
 (defun spatial-window--assign-cells (kbd-rows kbd-cols window-bounds)
-  "Assign each cell to nearest weighted centroid (row-gated Voronoi)."
+  "Assign each cell to nearest weighted centroid (row-gated Voronoi).
+A cell is left unassigned when the best and second-best windows are
+vertically stacked (significant x-overlap) and their scores are too
+close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
   (let* ((centroids (mapcar #'spatial-window--window-centroid window-bounds))
          (weights (mapcar #'spatial-window--window-area window-bounds))
          (grid (make-vector kbd-rows nil)))
@@ -85,6 +94,8 @@
                (cy (+ (/ (float row) kbd-rows) (/ 0.5 kbd-rows)))
                (best-idx nil)
                (best-score most-positive-fixnum)
+               (second-idx nil)
+               (second-score most-positive-fixnum)
                (eligible nil))
           (dotimes (i (length window-bounds))
             (let* ((wb (nth i window-bounds))
@@ -101,10 +112,25 @@
                    (dy (- cy (cdr c)))
                    (dist (+ (* dx dx) (* dy dy)))
                    (score (/ dist w)))
-              (when (< score best-score)
-                (setq best-score score)
-                (setq best-idx i))))
-          (when best-idx
+              (cond
+               ((< score best-score)
+                (setq second-score best-score second-idx best-idx
+                      best-score score best-idx i))
+               ((< score second-score)
+                (setq second-score score second-idx i)))))
+          (when (and best-idx
+                     (not (and second-idx
+                               ;; Check if windows are vertically stacked
+                               (let* ((best-wb (nth best-idx window-bounds))
+                                      (sec-wb (nth second-idx window-bounds))
+                                      (x-ov (max 0.0 (- (min (nth 2 best-wb) (nth 2 sec-wb))
+                                                         (max (nth 1 best-wb) (nth 1 sec-wb)))))
+                                      (min-w (min (- (nth 2 best-wb) (nth 1 best-wb))
+                                                  (- (nth 2 sec-wb) (nth 1 sec-wb)))))
+                                 (and (> min-w 0)
+                                      (> (/ x-ov min-w) 0.5)
+                                      (>= (/ best-score second-score)
+                                           spatial-window--voronoi-ambiguity-ratio))))))
             (aset (aref grid row) col (car (nth best-idx window-bounds)))))))
     grid))
 
