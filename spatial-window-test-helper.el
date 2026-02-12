@@ -74,6 +74,12 @@ MULTI-ROW-P means dims can wrap vertically."
     ;; Single-row: dims must fit on one line
     (max (length label) (length dims-str))))
 
+(defconst spatial-window--bts-max-width 80
+  "Maximum total character width for ASCII layout diagrams.")
+
+(defconst spatial-window--bts-max-height 16
+  "Maximum total line height for ASCII layout diagrams.")
+
 (defun spatial-window--bts-col-widths (grid x-coords y-coords window-bounds)
   "Compute column widths using proportional scaling.
 GRID is the label grid, X-COORDS and Y-COORDS are coordinate vectors,
@@ -97,6 +103,9 @@ WINDOW-BOUNDS is the original bounds list."
                (scale (/ (float need) frac-w)))
           (when (> scale min-scale)
             (setq min-scale scale)))))
+    ;; Cap scale so total width doesn't exceed max (minus border chars)
+    (let ((max-content (- spatial-window--bts-max-width (1+ ncols))))
+      (setq min-scale (min min-scale (float max-content))))
     ;; Compute raw widths
     (let* ((col-widths (make-vector ncols 0))
            (total 0))
@@ -111,19 +120,28 @@ WINDOW-BOUNDS is the original bounds list."
               (when (> min-w w) (setq w min-w))))
           (aset col-widths c w)
           (cl-incf total w)))
-      ;; Adjust rounding: compute expected total from scale
-      (let* ((expected-total (round min-scale))
-             (diff (- expected-total total)))
-        (when (/= diff 0)
-          ;; Find widest column and adjust
-          (let ((widest-idx 0)
-                (widest-w 0))
-            (dotimes (c ncols)
-              (when (> (aref col-widths c) widest-w)
-                (setq widest-w (aref col-widths c))
-                (setq widest-idx c)))
-            (aset col-widths widest-idx
-                  (max 3 (+ (aref col-widths widest-idx) diff))))))
+      ;; Ensure single-column windows have enough width for wrapped dims
+      (dolist (entry window-bounds)
+        (let* ((label (car entry))
+               (left (nth 1 entry)) (right (nth 2 entry))
+               (top (nth 3 entry)) (bottom (nth 4 entry))
+               (dims (spatial-window--bts-dims-string left right top bottom))
+               (win-cols nil))
+          (dotimes (c ncols)
+            (when (and (>= (aref x-coords c) left)
+                       (< (aref x-coords c) right))
+              (push c win-cols)))
+          (when (= (length win-cols) 1)
+            (let* ((c (car win-cols))
+                   (row-count 0))
+              (dotimes (r nrows)
+                (when (and (>= (aref y-coords r) top) (< (aref y-coords r) bottom))
+                  (cl-incf row-count)))
+              (let* ((min-cw (spatial-window--bts-min-content-width
+                               (symbol-name label) dims (> row-count 1)))
+                     (need (+ min-cw 1)))
+                (when (> need (aref col-widths c))
+                  (aset col-widths c need)))))))
       col-widths)))
 
 (defun spatial-window--bts-row-heights (grid x-coords y-coords col-widths window-bounds)
@@ -156,6 +174,9 @@ GRID, X-COORDS, Y-COORDS, COL-WIDTHS, WINDOW-BOUNDS as in other helpers."
                (scale (/ (float nlines) frac-h)))
           (when (> scale min-v-scale)
             (setq min-v-scale scale)))))
+    ;; Cap scale so total height doesn't exceed max (minus border lines)
+    (let ((max-content (- spatial-window--bts-max-height (1+ nrows))))
+      (setq min-v-scale (min min-v-scale (float max-content))))
     ;; Apply proportional heights
     (let* ((row-heights (make-vector nrows 0))
            (total 0))
@@ -164,18 +185,6 @@ GRID, X-COORDS, Y-COORDS, COL-WIDTHS, WINDOW-BOUNDS as in other helpers."
                (h (max 2 (round (* frac min-v-scale)))))
           (aset row-heights r h)
           (cl-incf total h)))
-      ;; Adjust rounding errors: add/subtract from tallest row
-      (let* ((expected-total (round min-v-scale))
-             (diff (- expected-total total)))
-        (when (/= diff 0)
-          (let ((tallest-idx 0)
-                (tallest-h 0))
-            (dotimes (r nrows)
-              (when (> (aref row-heights r) tallest-h)
-                (setq tallest-h (aref row-heights r))
-                (setq tallest-idx r)))
-            (aset row-heights tallest-idx
-                  (max 2 (+ (aref row-heights tallest-idx) diff))))))
       ;; Pass 2: multi-row windows may need more height
       (dolist (entry window-bounds)
         (let* ((label (symbol-name (car entry)))
