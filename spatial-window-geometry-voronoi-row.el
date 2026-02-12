@@ -44,8 +44,12 @@ stealing boundary cells from nearby small windows.")
 (defconst spatial-window--voronoi-ambiguity-ratio 0.75
   "Maximum best/second-best score ratio for a cell to be assigned.
 When the ratio exceeds this threshold, the cell is ambiguous and left
-unassigned.  0.75 corresponds to a ~57/43 split threshold, matching
-the production algorithm's y-dominance margin.")
+unassigned.  0.75 corresponds to a ~57/43 split threshold.")
+
+(defconst spatial-window--centroid-band-margin 0.02
+  "Margin added to row band boundaries for centroid-in-band checks.
+A centroid within this distance of a row edge is still considered
+in-band, preventing borderline centroids from being excluded.")
 
 (defun spatial-window--window-centroid (wb)
   "Return centroid (x . y) of window bounds WB."
@@ -96,8 +100,10 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
                     (when (>= y-ov spatial-window--row-overlap-min)
                       (push i eligible))))))
             ;; Centroid-in-band: prefer windows whose center is in this row
-            (let* ((row-y-start (/ (float row) kbd-rows))
-                   (row-y-end (/ (float (1+ row)) kbd-rows))
+            (let* ((row-y-start (- (/ (float row) kbd-rows)
+                                   spatial-window--centroid-band-margin))
+                   (row-y-end (+ (/ (float (1+ row)) kbd-rows)
+                                 spatial-window--centroid-band-margin))
                    (in-band nil))
               (dolist (i geo-eligible)
                 (let ((cy (cdr (nth i centroids))))
