@@ -61,6 +61,30 @@ in-band, preventing borderline centroids from being excluded.")
   (* (- (nth 2 wb) (nth 1 wb))
      (- (nth 4 wb) (nth 3 wb))))
 
+(defconst spatial-window--edge-touch-threshold 0.05
+  "Maximum distance from 0/1 boundary for a window to be considered edge-touching.")
+
+(defun spatial-window--window-edges (wb)
+  "Return list of edge keywords (:top :bottom :left :right) that WB touches.
+A window touches an edge when its boundary is within
+`spatial-window--edge-touch-threshold' of the 0 or 1 screen boundary."
+  (let ((thr spatial-window--edge-touch-threshold)
+        edges)
+    (when (<= (nth 3 wb) thr) (push :top edges))
+    (when (>= (nth 4 wb) (- 1.0 thr)) (push :bottom edges))
+    (when (<= (nth 1 wb) thr) (push :left edges))
+    (when (>= (nth 2 wb) (- 1.0 thr)) (push :right edges))
+    edges))
+
+(defun spatial-window--cell-edges (row col kbd-rows kbd-cols)
+  "Return list of edge keywords for which screen edges cell (ROW, COL) sits on."
+  (let (edges)
+    (when (= row 0) (push :top edges))
+    (when (= row (1- kbd-rows)) (push :bottom edges))
+    (when (= col 0) (push :left edges))
+    (when (= col (1- kbd-cols)) (push :right edges))
+    edges))
+
 (defun spatial-window--cell-y-overlap (cell-row kbd-rows win-y-start win-y-end)
   "Return vertical overlap fraction for CELL-ROW and window y-bounds."
   (let* ((cell-y-start (/ (float cell-row) kbd-rows))
@@ -173,24 +197,44 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
          (cell-area (* cell-width cell-height)))
     (/ overlap-area cell-area)))
 
-(defun spatial-window--assign-corners (grid kbd-rows kbd-cols window-bounds)
-  "Force corner cells to the window nearest each screen corner."
-  (dolist (corner (list (list 0 0 0.0 0.0)
-                        (list 0 (1- kbd-cols) 1.0 0.0)
-                        (list (1- kbd-rows) 0 0.0 1.0)
-                        (list (1- kbd-rows) (1- kbd-cols) 1.0 1.0)))
-    (let* ((row (nth 0 corner)) (col (nth 1 corner))
-           (sx (nth 2 corner)) (sy (nth 3 corner))
-           (best-win nil) (best-dist most-positive-fixnum))
-      (dolist (wb window-bounds)
-        (let* ((wx (max (nth 1 wb) (min sx (nth 2 wb))))
-               (wy (max (nth 3 wb) (min sy (nth 4 wb))))
-               (dx (- sx wx)) (dy (- sy wy))
-               (d (+ (* dx dx) (* dy dy))))
-          (when (< d best-dist)
-            (setq best-dist d best-win (car wb)))))
-      (when best-win
-        (aset (aref grid row) col best-win)))))
+(defun spatial-window--assign-edges (grid kbd-rows kbd-cols window-bounds)
+  "Force top/bottom row cells to nearest edge-touching window.
+For each cell on the top or bottom grid row, find windows sharing at
+least one screen edge with that cell, then pick the nearest by clamped
+nearest-point distance.  Nil cells (from ambiguity) are also reassigned
+on these rows since edge affinity provides a strong signal."
+  (let ((win-edges-cache
+         (mapcar (lambda (wb) (cons (car wb) (spatial-window--window-edges wb)))
+                 window-bounds)))
+    (dolist (row (list 0 (1- kbd-rows)))
+      (dotimes (col kbd-cols)
+        (let* ((cell-edges (spatial-window--cell-edges row col kbd-rows kbd-cols))
+               (is-corner (>= (length cell-edges) 2))
+               ;; Corner cells use actual screen corner point for distance;
+               ;; non-corner cells use the cell center.
+               (sx (if is-corner
+                       (if (= col 0) 0.0 1.0)
+                     (/ (+ (/ (float col) kbd-cols)
+                            (/ (float (1+ col)) kbd-cols))
+                         2.0)))
+               (sy (if is-corner
+                       (if (= row 0) 0.0 1.0)
+                     (/ (+ (/ (float row) kbd-rows)
+                            (/ (float (1+ row)) kbd-rows))
+                         2.0)))
+               (best-win nil)
+               (best-dist most-positive-fixnum))
+          (dolist (wb window-bounds)
+            (let ((win-edges (cdr (assq (car wb) win-edges-cache))))
+              (when (cl-intersection cell-edges win-edges)
+                (let* ((wx (max (nth 1 wb) (min sx (nth 2 wb))))
+                       (wy (max (nth 3 wb) (min sy (nth 4 wb))))
+                       (dx (- sx wx)) (dy (- sy wy))
+                       (d (+ (* dx dx) (* dy dy))))
+                  (when (< d best-dist)
+                    (setq best-dist d best-win (car wb)))))))
+          (when best-win
+            (aset (aref grid row) col best-win)))))))
 
 (defun spatial-window--ensure-all-windows-have-keys (final kbd-rows kbd-cols window-bounds)
   "Ensure every window gets at least one key by stealing best-overlap cells."
@@ -233,7 +277,7 @@ Returns nil with message if more than 30 windows."
           (message "Too many windows: %d windows for 30 keys" num-windows)
           nil)
       (let ((final (spatial-window--assign-cells kbd-rows kbd-cols window-bounds)))
-        (spatial-window--assign-corners final kbd-rows kbd-cols window-bounds)
+        (spatial-window--assign-edges final kbd-rows kbd-cols window-bounds)
         (spatial-window--ensure-all-windows-have-keys
          final kbd-rows kbd-cols window-bounds)
         final))))
