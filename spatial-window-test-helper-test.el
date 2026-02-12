@@ -78,7 +78,8 @@
 
 (ert-deftest spatial-window-test-bts-complex-11-window ()
   "Complex layout: 5 stacked left panes, 2 full-height middle columns,
-2 stacked quarter panes, and a narrow top + large bottom on the right."
+2 stacked quarter panes, and a narrow top + large bottom on the right.
+Row heights are proportional to fractional height."
   (should (string= (spatial-window--bounds-to-string
                      '((A 0.499 0.999 0.015 0.069)
                        (B 0.499 0.999 0.069 0.985)
@@ -99,17 +100,42 @@
                      "│       │       │             │                           │                                                       │\n"
                      "│       │       │             │                           │                                                       │\n"
                      "├───────┤       │             │                           │                                                       │\n"
-                     "│ D     │       │             │ J                         │                                                       │\n"
-                     "│ 6w×7h │ H     │ I           │ 25w×49h                   │                                                       │\n"
-                     "├───────┤ 6w×97h│ 12w×97h     │                           │                                                       │\n"
-                     "│ E     │       │             │                           │ B                                                     │\n"
-                     "│ 6w×12h│       │             │                           │ 50w×92h                                               │\n"
+                     "│ D     │       │             │                           │                                                       │\n"
+                     "│ 6w×7h │       │             │                           │                                                       │\n"
                      "├───────┤       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│ E     │       │             │ J                         │                                                       │\n"
+                     "│ 6w×12h│       │             │ 25w×49h                   │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "├───────┤       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
                      "│ F     │       │             │                           │                                                       │\n"
                      "│ 6w×24h│       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │ H     │ I           │                           │                                                       │\n"
+                     "│       │ 6w×97h│ 12w×97h     │                           │ B                                                     │\n"
+                     "│       │       │             │                           │ 50w×92h                                               │\n"
                      "├───────┤       │             ├───────────────────────────┤                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
                      "│ G     │       │             │ K                         │                                                       │\n"
                      "│ 6w×48h│       │             │ 25w×48h                   │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
+                     "│       │       │             │                           │                                                       │\n"
                      "└───────┴───────┴─────────────┴───────────────────────────┴───────────────────────────────────────────────────────┘"))))
 
 (provide 'spatial-window-test-helper-test)
