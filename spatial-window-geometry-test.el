@@ -100,7 +100,7 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
 ;;; └────────┴──────┘
 ;;;
 ;;; Row 0: R R R R R R C C C C
-;;; Row 1: · · · · · · C C C C
+;;; Row 1: · · · · · C C C C C
 ;;; Row 2: M M M M M M C C C C
 
 (ert-deftest spatial-window-test-near-equal-vertical-split ()
@@ -110,7 +110,7 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
      (R 0.0011695906432748538 0.5894736842105263 0.0019230769230769232 0.4855769230769231)
      (M 0.0011695906432748538 0.5894736842105263 0.4855769230769231 0.9846153846153847))
    '("R R R R R R C C C C"
-     "· · · · · · C C C C"
+     "· · · · · C C C C C"
      "M M M M M M C C C C")))
 
 ;;; ┌────────┬──────┐
@@ -127,7 +127,7 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
 ;;; └────────┴──────┘
 ;;;
 ;;; Row 0: S S S S S S C C C C
-;;; Row 1: J J J J J J C C C C
+;;; Row 1: J J J J J C C C C C
 ;;; Row 2: T T T T T T C C C C
 
 (ert-deftest spatial-window-test-3-left-stacked-1-right ()
@@ -142,7 +142,7 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
      (J 0.0011695906432748538 0.5894736842105263
         0.49903846153846154 0.7423076923076923))
    '("S S S S S S C C C C"
-     "J J J J J J C C C C"
+     "J J J J J C C C C C"
      "T T T T T T C C C C")))
 
 ;;; Middle row assignment threshold characterization
@@ -331,7 +331,7 @@ split away from exactly 50%."
 ;;;
 ;;; Row 0: M M M M M M C C C C
 ;;; Row 1: M M M M M M C C C C
-;;; Row 2: D D D D D D C C C C
+;;; Row 2: D D D D D C C C C C
 
 (ert-deftest spatial-window-test-ide-layout-with-thin-panel ()
   "IDE layout: main editor + thin diff panel on left, claude on right."
@@ -341,7 +341,7 @@ split away from exactly 50%."
      (C 0.63 1.0 0.0 0.985))
    '("M M M M M M C C C C"
      "M M M M M M C C C C"
-     "D D D D D D C C C C")))
+     "D D D D D C C C C C")))
 
 ;;; ┌───────┬──────────────────────────────────────────────────────────────────────────┐
 ;;; │       │                                                                          │
@@ -379,7 +379,7 @@ split away from exactly 50%."
 ;;; └────────┴──────────────────┘
 ;;;
 ;;; Row 0: A A A A A A B B B B
-;;; Row 1: · · · A · · · · · ·
+;;; Row 1: · · A A A D D D · ·
 ;;; Row 2: C C C D D D D D D D
 
 (ert-deftest spatial-window-test-misaligned-vertical-splits ()
@@ -390,7 +390,7 @@ split away from exactly 50%."
      (C 0.001 0.327 0.5 0.985)
      (D 0.327 0.999 0.5 0.985))
    '("A A A A A A B B B B"
-     "· · · A · · · · · ·"
+     "· · A A A D D D · ·"
      "C C C D D D D D D D")))
 
 ;;; ┌────────┬──────────────────────────────────────────────────────────────────┐
@@ -407,7 +407,7 @@ split away from exactly 50%."
 ;;; └────────────────────────┴──────────────────────────────────────────────────┘
 ;;;
 ;;; Row 0: N W W W W W W W W W
-;;; Row 1: · G · P P P P P P P
+;;; Row 1: G G · P P P P P P P
 ;;; Row 2: G G G Q Q Q Q Q Q Q
 
 (ert-deftest spatial-window-test-real-dev-session-layout ()
@@ -419,7 +419,7 @@ split away from exactly 50%."
      (W 0.11052631578947368 0.9988304093567252 0.0019230769230769232 0.48653846153846153)
      (G 0.0011695906432748538 0.3192982456140351 0.48653846153846153 0.9846153846153847))
    '("N W W W W W W W W W"
-     "· G · P P P P P P P"
+     "G G · P P P P P P P"
      "G G G Q Q Q Q Q Q Q")))
 
 ;;; ┌────────┬────────┐
