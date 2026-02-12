@@ -32,7 +32,7 @@ stderr (visible in batch mode), then fail."
         (setq lines (nreverse lines))
         (dolist (line lines)
           (message "%s" line))
-        (ert-fail (mapconcat #'identity lines "\n"))))))
+        (ert-fail "grid mismatch — see diagram above")))))
 
 ;;; Key assignment tests
 
