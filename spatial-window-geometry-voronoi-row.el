@@ -88,6 +88,16 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
                   (let ((y-ov (spatial-window--cell-y-overlap row kbd-rows (nth 3 wb) (nth 4 wb))))
                     (when (>= y-ov spatial-window--row-overlap-min)
                       (push i eligible))))))
+            ;; Centroid-in-band: prefer windows whose center is in this row
+            (let* ((row-y-start (/ (float row) kbd-rows))
+                   (row-y-end (/ (float (1+ row)) kbd-rows))
+                   (in-band nil))
+              (dolist (i geo-eligible)
+                (let ((cy (cdr (nth i centroids))))
+                  (when (and (>= cy row-y-start) (< cy row-y-end))
+                    (push i in-band))))
+              (when in-band
+                (setq eligible in-band)))
             (when (null eligible)
               (setq eligible geo-eligible))
             (when (null eligible)
