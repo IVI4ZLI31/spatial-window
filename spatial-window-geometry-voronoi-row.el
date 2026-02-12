@@ -160,6 +160,57 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
          (cell-area (* cell-width cell-height)))
     (/ overlap-area cell-area)))
 
+(defun spatial-window--assign-corners (grid kbd-rows kbd-cols window-bounds)
+  "Force corner cells to the window nearest each screen corner."
+  (dolist (corner (list (list 0 0 0.0 0.0)
+                        (list 0 (1- kbd-cols) 1.0 0.0)
+                        (list (1- kbd-rows) 0 0.0 1.0)
+                        (list (1- kbd-rows) (1- kbd-cols) 1.0 1.0)))
+    (let* ((row (nth 0 corner)) (col (nth 1 corner))
+           (sx (nth 2 corner)) (sy (nth 3 corner))
+           (best-win nil) (best-dist most-positive-fixnum))
+      (dolist (wb window-bounds)
+        (let* ((wx (max (nth 1 wb) (min sx (nth 2 wb))))
+               (wy (max (nth 3 wb) (min sy (nth 4 wb))))
+               (dx (- sx wx)) (dy (- sy wy))
+               (d (+ (* dx dx) (* dy dy))))
+          (when (< d best-dist)
+            (setq best-dist d best-win (car wb)))))
+      (when best-win
+        (aset (aref grid row) col best-win)))))
+
+(defun spatial-window--connect-row-groups (grid kbd-rows kbd-cols window-bounds)
+  "Fill gaps between a window's disconnected cell groups in the same row.
+Only fills when the window physically overlaps every gap cell."
+  (dotimes (row kbd-rows)
+    (let ((win-cols (make-hash-table :test 'eq)))
+      ;; Collect columns per window
+      (dotimes (col kbd-cols)
+        (let ((w (aref (aref grid row) col)))
+          (when w (puthash w (cons col (gethash w win-cols nil)) win-cols))))
+      ;; Check each window for gaps
+      (maphash
+       (lambda (win cols)
+         (let* ((sorted (sort (copy-sequence cols) #'<))
+                (min-col (car sorted))
+                (max-col (car (last sorted))))
+           (when (> (1+ (- max-col min-col)) (length sorted))
+             ;; Has gap — check if window overlaps all gap cells
+             (let ((wb (cl-find win window-bounds :key #'car))
+                   (can-fill t))
+               (cl-loop for c from (1+ min-col) below max-col
+                        unless (memq c sorted)
+                        do (when (<= (spatial-window--cell-overlap
+                                      row c kbd-rows kbd-cols
+                                      (nth 1 wb) (nth 2 wb) (nth 3 wb) (nth 4 wb))
+                                     0)
+                             (setq can-fill nil)))
+               (when can-fill
+                 (cl-loop for c from (1+ min-col) below max-col
+                          unless (memq c sorted)
+                          do (aset (aref grid row) c win)))))))
+       win-cols))))
+
 (defun spatial-window--ensure-all-windows-have-keys (final kbd-rows kbd-cols window-bounds)
   "Ensure every window gets at least one key by stealing best-overlap cells."
   (let ((counts (spatial-window--count-all-keys final kbd-rows kbd-cols))
@@ -201,6 +252,8 @@ Returns nil with message if more than 30 windows."
           (message "Too many windows: %d windows for 30 keys" num-windows)
           nil)
       (let ((final (spatial-window--assign-cells kbd-rows kbd-cols window-bounds)))
+        (spatial-window--assign-corners final kbd-rows kbd-cols window-bounds)
+        (spatial-window--connect-row-groups final kbd-rows kbd-cols window-bounds)
         (spatial-window--ensure-all-windows-have-keys
          final kbd-rows kbd-cols window-bounds)
         final))))
