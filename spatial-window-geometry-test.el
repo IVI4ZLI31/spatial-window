@@ -7,7 +7,19 @@
 
 (require 'ert)
 (require 'spatial-window-geometry)
-(require 'spatial-window)  ; for spatial-window--get-layout
+
+;; Inline layout definition — isolates geometry tests from spatial-window.el
+(defconst spatial-window-layout-qwerty
+  '(("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
+    ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")
+    ("z" "x" "c" "v" "b" "n" "m" "," "." "/"))
+  "QWERTY keyboard layout.")
+
+(setq spatial-window-keyboard-layout 'qwerty)
+
+(defun spatial-window--get-layout ()
+  "Return the keyboard layout as a list of rows."
+  spatial-window-layout-qwerty)
 
 ;;; Key assignment tests
 
