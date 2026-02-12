@@ -9,16 +9,17 @@
 
 (require 'ert)
 (require 'spatial-window-geometry-voronoi-row)
+(require 'spatial-window-test-helper)
 
 ;;; Assertion helper
 
 (defun spatial-window-voronoi-row-test--assert-assignment (window-bounds expected-rows)
   "Assert WINDOW-BOUNDS produces EXPECTED-ROWS via compute-assignment.
-On mismatch, fail with side-by-side expected/actual comparison."
+On mismatch, fail with layout diagram and side-by-side expected/actual."
   (let* ((grid (spatial-window--compute-assignment window-bounds))
          (actual-rows (spatial-window--grid-to-strings grid)))
     (unless (equal actual-rows expected-rows)
-      (let ((lines nil))
+      (let ((lines (list (spatial-window--bounds-to-string window-bounds) "")))
         (dotimes (i (length expected-rows))
           (push (if (= i 0)
                     (format "expected: %s   actual: %s"
