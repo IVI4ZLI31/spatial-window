@@ -576,9 +576,13 @@ different window, avoiding an extra deselect step."
   (message "FOCUS: select window, RET to focus current"))
 
 (defun spatial-window--history-refresh ()
-  "Recompute assignments and refresh overlays after history navigation."
+  "Recompute assignments and refresh overlays after history navigation.
+Update highlighted window to match `selected-window' from the
+restored configuration so the red highlight tracks the cursor."
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-assignments st)
+    (setf (spatial-window--state-highlighted-windows st)
+          (list (selected-window))
+          (spatial-window--state-assignments st)
           (spatial-window--assignment-to-keys
            (spatial-window--compute-assignment (spatial-window--window-bounds))
            (spatial-window--get-layout)))
