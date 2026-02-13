@@ -173,13 +173,16 @@ KBD-ROWS and KBD-COLS define grid dimensions, KBD-LAYOUT maps to key strings."
 GRID is the 2D vector returned by `spatial-window--compute-assignment'.
 KBD-LAYOUT is the keyboard layout (list of rows of key strings).
 Returns alist of (window . (list of keys)), or nil if layout is invalid."
-  (if (not (apply #'= (mapcar #'length kbd-layout)))
-      (progn
-        (message "Invalid keyboard layout: rows have different lengths")
-        nil)
-    (let ((kbd-rows (length kbd-layout))
-          (kbd-cols (length (car kbd-layout))))
-      (spatial-window--final-to-keys grid kbd-rows kbd-cols kbd-layout))))
+  (let ((lengths (mapcar #'length kbd-layout)))
+    (cond
+     ((or (null kbd-layout) (memq 0 lengths))
+      (message "Invalid keyboard layout: empty layout or empty row")
+      nil)
+     ((not (apply #'= lengths))
+      (message "Invalid keyboard layout: rows have different lengths")
+      nil)
+     (t
+      (spatial-window--final-to-keys grid (length kbd-layout) (car lengths) kbd-layout)))))
 
 (defun spatial-window--format-key-grid (keys kbd-layout)
   "Format KEYS as a keyboard grid string using KBD-LAYOUT.
