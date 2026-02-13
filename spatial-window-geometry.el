@@ -132,8 +132,8 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
                                  spatial-window--centroid-band-margin))
                    (in-band nil))
               (dolist (i geo-eligible)
-                (let ((cy (cdr (nth i centroids))))
-                  (when (and (>= cy row-y-start) (< cy row-y-end))
+                (let ((win-cy (cdr (nth i centroids))))
+                  (when (and (>= win-cy row-y-start) (< win-cy row-y-end))
                     (push i in-band))))
               (when in-band
                 (setq eligible in-band)))

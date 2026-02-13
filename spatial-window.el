@@ -323,23 +323,16 @@ pre-browsing layout onto the history ring so the navigation is undoable."
     (when (timerp timer)
       (cancel-timer timer))
     (when live
-      (spatial-window--save-layout 'undo live))
+      (spatial-window--save-layout 'undo live)
+      (setf (spatial-window--state-history-live-config st) nil))
     (setf (spatial-window--state-selection-active st) nil)
     (spatial-window--remove-overlays)))
 
 (defun spatial-window--abort ()
   "Abort window selection and clean up overlays."
   (interactive)
-  (let* ((st spatial-window--state)
-         (timer (spatial-window--state-overlay-timer st))
-         (live (spatial-window--state-history-live-config st)))
-    (when (timerp timer)
-      (cancel-timer timer))
-    (when live
-      (set-window-configuration live))
-    (spatial-window--remove-overlays)
-    (spatial-window--reset-state)
-    (keyboard-quit)))
+  (spatial-window--cleanup-mode)
+  (keyboard-quit))
 
 (defun spatial-window--reset-state ()
   "Reset all state variables for action modes."
@@ -361,12 +354,18 @@ pre-browsing layout onto the history ring so the navigation is undoable."
     (select-window (minibuffer-window))))
 
 (defun spatial-window--cleanup-mode ()
-  "Clean up overlays, cancel timers, and reset state after any mode ends."
-  (let ((timer (spatial-window--state-overlay-timer spatial-window--state)))
+  "Clean up overlays, cancel timers, and reset state after any mode ends.
+If the user was browsing history and the transient map exits
+unexpectedly (e.g. unbound key), restore the pre-browsing layout."
+  (let* ((st spatial-window--state)
+         (timer (spatial-window--state-overlay-timer st))
+         (live (spatial-window--state-history-live-config st)))
     (when (timerp timer)
-      (cancel-timer timer)))
-  (spatial-window--remove-overlays)
-  (spatial-window--reset-state))
+      (cancel-timer timer))
+    (when live
+      (set-window-configuration live))
+    (spatial-window--remove-overlays)
+    (spatial-window--reset-state)))
 
 (defun spatial-window--make-mode-keymap (key-action &optional extra-bindings)
   "Create keymap binding all layout keys to KEY-ACTION.
