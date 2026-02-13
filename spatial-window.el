@@ -132,6 +132,70 @@ Returns alist of (extension-key . base-key)."
     ('colemak spatial-window-extensions-colemak)
     (_ nil)))
 
+;;; Frame introspection
+
+(defun spatial-window--window-bounds (&optional frame)
+  "Return window bounds for FRAME as list of (window x-start x-end y-start y-end).
+Coordinates are normalized to 0.0-1.0 range relative to frame size."
+  (let* ((frame (or frame (selected-frame)))
+         (frame-w (float (frame-pixel-width frame)))
+         (frame-h (float (frame-pixel-height frame)))
+         (windows (window-list frame 'no-minibuf)))
+    (mapcar (lambda (w)
+              (let ((edges (window-pixel-edges w)))
+                (list w
+                      (/ (nth 0 edges) frame-w)   ; x-start
+                      (/ (nth 2 edges) frame-w)   ; x-end
+                      (/ (nth 1 edges) frame-h)   ; y-start
+                      (/ (nth 3 edges) frame-h)))) ; y-end
+            windows)))
+
+;;; Layout-dependent key mapping
+
+(defun spatial-window--final-to-keys (final kbd-rows kbd-cols kbd-layout)
+  "Convert FINAL assignment grid to alist of (window . keys).
+KBD-ROWS and KBD-COLS define grid dimensions, KBD-LAYOUT maps to key strings."
+  (let ((result (make-hash-table :test 'eq)))
+    (dotimes (row kbd-rows)
+      (dotimes (col kbd-cols)
+        (let ((win (aref (aref final row) col)))
+          (when win
+            (push (nth col (nth row kbd-layout)) (gethash win result))))))
+    ;; Convert to alist with reversed key lists
+    (let ((alist nil))
+      (maphash (lambda (win keys)
+                 (push (cons win (nreverse keys)) alist))
+               result)
+      alist)))
+
+(defun spatial-window--assignment-to-keys (grid kbd-layout)
+  "Map assignment GRID to keyboard keys using KBD-LAYOUT.
+GRID is the 2D vector returned by `spatial-window--compute-assignment'.
+KBD-LAYOUT is the keyboard layout (list of rows of key strings).
+Returns alist of (window . (list of keys)), or nil if layout is invalid."
+  (if (not (apply #'= (mapcar #'length kbd-layout)))
+      (progn
+        (message "Invalid keyboard layout: rows have different lengths")
+        nil)
+    (let ((kbd-rows (length kbd-layout))
+          (kbd-cols (length (car kbd-layout))))
+      (spatial-window--final-to-keys grid kbd-rows kbd-cols kbd-layout))))
+
+(defun spatial-window--format-key-grid (keys kbd-layout)
+  "Format KEYS as a keyboard grid string using KBD-LAYOUT.
+Returns a string showing which keys are assigned, displayed in keyboard layout."
+  (let ((key-set (make-hash-table :test 'equal)))
+    (dolist (k keys)
+      (puthash k t key-set))
+    (mapconcat
+     (lambda (row)
+       (mapconcat
+        (lambda (key)
+          (if (gethash key key-set) key "·"))
+        row " "))
+     kbd-layout
+     "\n")))
+
 (defface spatial-window-overlay-face
   '((t (:foreground "red" :background "white" :weight bold)))
   "Face for spatial-window key overlay."
@@ -188,7 +252,7 @@ Returns non-nil if overlays were shown, nil if no assignments."
       (dolist (pair assignments)
         (let* ((window (car pair))
                (keys (cdr pair))
-               (grid-str (spatial-window--format-key-grid keys))
+               (grid-str (spatial-window--format-key-grid keys (spatial-window--get-layout)))
                (buf-name (format " *spatial-window-%d*" idx))
                (edges (window-pixel-edges window))
                (x (nth 0 edges))
@@ -259,23 +323,16 @@ pre-browsing layout onto the history ring so the navigation is undoable."
     (when (timerp timer)
       (cancel-timer timer))
     (when live
-      (spatial-window--save-layout 'undo live))
+      (spatial-window--save-layout 'undo live)
+      (setf (spatial-window--state-history-live-config st) nil))
     (setf (spatial-window--state-selection-active st) nil)
     (spatial-window--remove-overlays)))
 
 (defun spatial-window--abort ()
   "Abort window selection and clean up overlays."
   (interactive)
-  (let* ((st spatial-window--state)
-         (timer (spatial-window--state-overlay-timer st))
-         (live (spatial-window--state-history-live-config st)))
-    (when (timerp timer)
-      (cancel-timer timer))
-    (when live
-      (set-window-configuration live))
-    (spatial-window--remove-overlays)
-    (spatial-window--reset-state)
-    (keyboard-quit)))
+  (spatial-window--cleanup-mode)
+  (keyboard-quit))
 
 (defun spatial-window--reset-state ()
   "Reset all state variables for action modes."
@@ -297,12 +354,18 @@ pre-browsing layout onto the history ring so the navigation is undoable."
     (select-window (minibuffer-window))))
 
 (defun spatial-window--cleanup-mode ()
-  "Clean up overlays, cancel timers, and reset state after any mode ends."
-  (let ((timer (spatial-window--state-overlay-timer spatial-window--state)))
+  "Clean up overlays, cancel timers, and reset state after any mode ends.
+If the user was browsing history and the transient map exits
+unexpectedly (e.g. unbound key), restore the pre-browsing layout."
+  (let* ((st spatial-window--state)
+         (timer (spatial-window--state-overlay-timer st))
+         (live (spatial-window--state-history-live-config st)))
     (when (timerp timer)
-      (cancel-timer timer)))
-  (spatial-window--remove-overlays)
-  (spatial-window--reset-state))
+      (cancel-timer timer))
+    (when live
+      (set-window-configuration live))
+    (spatial-window--remove-overlays)
+    (spatial-window--reset-state)))
 
 (defun spatial-window--make-mode-keymap (key-action &optional extra-bindings)
   "Create keymap binding all layout keys to KEY-ACTION.
@@ -326,7 +389,10 @@ HIGHLIGHTED is a list of windows to highlight in overlays.
 MESSAGE is displayed in the minibuffer."
   (require 'posframe)
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys)
+    (setf (spatial-window--state-assignments st)
+          (spatial-window--assignment-to-keys
+           (spatial-window--compute-assignment (spatial-window--window-bounds))
+           (spatial-window--get-layout))
           (spatial-window--state-highlighted-windows st) highlighted)
     (when (spatial-window--state-assignments st)
       (setf (spatial-window--state-selection-active st) t)
@@ -512,7 +578,10 @@ different window, avoiding an extra deselect step."
 (defun spatial-window--history-refresh ()
   "Recompute assignments and refresh overlays after history navigation."
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-assignments st) (spatial-window--assign-keys))
+    (setf (spatial-window--state-assignments st)
+          (spatial-window--assignment-to-keys
+           (spatial-window--compute-assignment (spatial-window--window-bounds))
+           (spatial-window--get-layout)))
     (when (spatial-window--state-overlays-visible st)
       (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
     (message "%s" (spatial-window--unified-mode-message))))

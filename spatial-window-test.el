@@ -150,6 +150,45 @@
     (should (string-match "\\[K\\]ill.*\\[←\\] Undo focus"
                           (spatial-window--unified-mode-message)))))
 
+;;; Layout-dependent function tests (moved from geometry test files)
+
+(defconst spatial-window-test-layout
+  '(("q" "w" "e" "r" "t" "y" "u" "i" "o" "p")
+    ("a" "s" "d" "f" "g" "h" "j" "k" "l" ";")
+    ("z" "x" "c" "v" "b" "n" "m" "," "." "/"))
+  "QWERTY layout for tests.")
+
+(ert-deftest spatial-window-test-invalid-keyboard-layout ()
+  "Returns nil and displays message when keyboard layout rows have different lengths."
+  (let ((invalid-layout '(("q" "w" "e")
+                          ("a" "s")))
+        (dummy-grid (vector (vector 'w nil nil) (vector 'w nil nil)))
+        (messages nil))
+    (cl-letf (((symbol-function 'message)
+               (lambda (fmt &rest args) (push (apply #'format fmt args) messages))))
+      (let ((result (spatial-window--assignment-to-keys dummy-grid invalid-layout)))
+        (should (null result))
+        (should (cl-some (lambda (msg) (string-match-p "Invalid keyboard layout" msg)) messages))))))
+
+(ert-deftest spatial-window-test-format-key-grid ()
+  "Format keys as keyboard grid shows assigned keys and dots for unassigned."
+  (let ((grid (spatial-window--format-key-grid '("q" "w" "e" "a" "s") spatial-window-test-layout)))
+    (should (= (length (split-string grid "\n")) 3))
+    (should (string-match-p "^q w e · · · · · · ·$" (car (split-string grid "\n"))))
+    (should (string-match-p "^a s · · · · · · · ·$" (nth 1 (split-string grid "\n"))))
+    (should (string-match-p "^· · · · · · · · · ·$" (nth 2 (split-string grid "\n"))))))
+
+(ert-deftest spatial-window-test-format-key-grid-empty ()
+  "Empty key list produces all dots."
+  (let ((grid (spatial-window--format-key-grid '() spatial-window-test-layout)))
+    (should (string-match-p "^· · · · · · · · · ·$" (car (split-string grid "\n"))))))
+
+(ert-deftest spatial-window-test-format-key-grid-all-keys ()
+  "All keys assigned shows full keyboard."
+  (let* ((all-keys (apply #'append spatial-window-test-layout))
+         (grid (spatial-window--format-key-grid all-keys spatial-window-test-layout)))
+    (should (string-match-p "^q w e r t y u i o p$" (car (split-string grid "\n"))))))
+
 (provide 'spatial-window-test)
 
 ;;; spatial-window-test.el ends here
