@@ -475,47 +475,64 @@ Evicts oldest entry when `spatial-window-history-max' is exceeded."
 
 ;;; Unified selection with action modifiers
 
+(defun spatial-window--refresh-overlays ()
+  "Refresh overlays if currently visible."
+  (let ((st spatial-window--state))
+    (when (spatial-window--state-overlays-visible st)
+      (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))))
+
+(defun spatial-window--complete-single-input (win)
+  "Exit selection mode and complete current single-input action on WIN."
+  (spatial-window--exit-selection-mode)
+  (pcase (spatial-window--state-action spatial-window--state)
+    ('swap
+     (spatial-window--save-layout 'swap)
+     (spatial-window--swap-windows
+      (spatial-window--state-source-window spatial-window--state) win)
+     (select-window win)
+     (message "Swapped windows"))
+    ('focus
+     (spatial-window--save-layout 'focus)
+     (select-window win)
+     (let ((ignore-window-parameters t))
+       (delete-other-windows win))
+     (message "Focused window"))
+    (_ (select-window win))))
+
+(defun spatial-window--set-action (action message)
+  "Switch to ACTION mode, highlight current window, show MESSAGE.
+Callers should set additional state fields before calling this."
+  (let ((st spatial-window--state))
+    (setf (spatial-window--state-action st) action
+          (spatial-window--state-highlighted-windows st) (list (selected-window)))
+    (spatial-window--refresh-overlays))
+  (message "%s" message))
+
 (defun spatial-window--act-by-key ()
   "Apply current action to the window corresponding to the pressed key."
   (interactive)
   (spatial-window--with-target-window
-    (let ((action (spatial-window--state-action spatial-window--state)))
-      (pcase action
-        ('kill
-         (let* ((st spatial-window--state)
-                (soft (spatial-window--state-kill-soft-select st)))
-           ;; First press on a different window replaces the soft pre-selection
-           (when (and soft (not (eq win soft)))
+    (pcase (spatial-window--state-action spatial-window--state)
+      ;; Multi-input: toggle window in selection set
+      ('kill
+       (let* ((st spatial-window--state)
+              (soft (spatial-window--state-kill-soft-select st)))
+         ;; First press on a different window replaces the soft pre-selection
+         (when (and soft (not (eq win soft)))
+           (setf (spatial-window--state-selected-windows st)
+                 (delq soft (spatial-window--state-selected-windows st))))
+         (when soft
+           (setf (spatial-window--state-kill-soft-select st) nil))
+         (if (memq win (spatial-window--state-selected-windows st))
              (setf (spatial-window--state-selected-windows st)
-                   (delq soft (spatial-window--state-selected-windows st))))
-           (when soft
-             (setf (spatial-window--state-kill-soft-select st) nil))
-           (if (memq win (spatial-window--state-selected-windows st))
-               (setf (spatial-window--state-selected-windows st)
-                     (delq win (spatial-window--state-selected-windows st)))
-             (push win (spatial-window--state-selected-windows st)))
-           (setf (spatial-window--state-highlighted-windows st)
-                 (spatial-window--state-selected-windows st))
-           (when (spatial-window--state-overlays-visible st)
-             (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
-           (spatial-window--kill-mode-message)))
-        (_
-         (spatial-window--exit-selection-mode)
-         (pcase action
-           ('swap
-            (spatial-window--save-layout 'swap)
-            (spatial-window--swap-windows
-             (spatial-window--state-source-window spatial-window--state) win)
-            (select-window win)
-            (message "Swapped windows"))
-           ('focus
-            (spatial-window--save-layout 'focus)
-            (select-window win)
-            (let ((ignore-window-parameters t))
-              (delete-other-windows win))
-            (message "Focused window"))
-           (_
-            (select-window win))))))))
+                   (delq win (spatial-window--state-selected-windows st)))
+           (push win (spatial-window--state-selected-windows st)))
+         (setf (spatial-window--state-highlighted-windows st)
+               (spatial-window--state-selected-windows st))
+         (spatial-window--refresh-overlays)
+         (spatial-window--kill-mode-message)))
+      ;; Single-input: immediately complete
+      (_ (spatial-window--complete-single-input win)))))
 
 (defun spatial-window--set-action-kill ()
   "Switch to kill action with current window soft-pre-selected.
@@ -523,60 +540,37 @@ The pre-selection is replaced if the first key press picks a
 different window, avoiding an extra deselect step."
   (interactive)
   (let ((st spatial-window--state))
-    (setf (spatial-window--state-action st) 'kill
-          (spatial-window--state-selected-windows st) (list (selected-window))
-          (spatial-window--state-highlighted-windows st) (list (selected-window))
-          (spatial-window--state-kill-soft-select st) (selected-window))
-    (when (spatial-window--state-overlays-visible st)
-      (spatial-window--show-overlays (spatial-window--state-highlighted-windows st))))
-  (message "KILL: toggle windows, RET to delete"))
+    (setf (spatial-window--state-selected-windows st) (list (selected-window))
+          (spatial-window--state-kill-soft-select st) (selected-window)))
+  (spatial-window--set-action 'kill "KILL: toggle windows, RET to delete"))
 
 (defun spatial-window--execute-ret ()
   "Execute RET: confirm current action on selected/current window."
   (interactive)
-  (let* ((st spatial-window--state)
-         (action (spatial-window--state-action st)))
-    (pcase action
-      ('kill
-       (let ((windows-to-kill (spatial-window--state-selected-windows st)))
-         (spatial-window--exit-selection-mode)
-         (when windows-to-kill
-           (spatial-window--save-layout 'kill)
-           (dolist (win windows-to-kill)
-             (when (window-live-p win)
-               (delete-window win))))
-         (message "Killed %d window(s)" (length windows-to-kill))))
-      ('focus
-       (let ((win (selected-window)))
-         (spatial-window--exit-selection-mode)
-         (spatial-window--save-layout 'focus)
-         (let ((ignore-window-parameters t))
-           (delete-other-windows win))
-         (message "Focused window")))
-      (_
-       (spatial-window--exit-selection-mode)))))
+  (pcase (spatial-window--state-action spatial-window--state)
+    ;; Multi-input: confirm and execute on accumulated set
+    ('kill
+     (let ((windows-to-kill (spatial-window--state-selected-windows spatial-window--state)))
+       (spatial-window--exit-selection-mode)
+       (when windows-to-kill
+         (spatial-window--save-layout 'kill)
+         (dolist (win windows-to-kill)
+           (when (window-live-p win)
+             (delete-window win))))
+       (message "Killed %d window(s)" (length windows-to-kill))))
+    ;; Single-input: complete on current window
+    (_ (spatial-window--complete-single-input (selected-window)))))
 
 (defun spatial-window--set-action-swap ()
   "Switch to swap action, recording current window as source."
   (interactive)
-  (let ((st spatial-window--state))
-    (setf (spatial-window--state-action st) 'swap
-          (spatial-window--state-source-window st) (selected-window)
-          (spatial-window--state-highlighted-windows st)
-          (list (selected-window)))
-    (when (spatial-window--state-overlays-visible st)
-      (spatial-window--show-overlays (spatial-window--state-highlighted-windows st))))
-  (message "SWAP: select target window"))
+  (setf (spatial-window--state-source-window spatial-window--state) (selected-window))
+  (spatial-window--set-action 'swap "SWAP: select target window"))
 
 (defun spatial-window--set-action-focus ()
   "Switch to focus action with current window highlighted."
   (interactive)
-  (let ((st spatial-window--state))
-    (setf (spatial-window--state-action st) 'focus
-          (spatial-window--state-highlighted-windows st) (list (selected-window)))
-    (when (spatial-window--state-overlays-visible st)
-      (spatial-window--show-overlays (spatial-window--state-highlighted-windows st))))
-  (message "FOCUS: select window, RET to focus current"))
+  (spatial-window--set-action 'focus "FOCUS: select window, RET to focus current"))
 
 (defun spatial-window--history-refresh ()
   "Recompute assignments and refresh overlays after history navigation.
@@ -589,8 +583,7 @@ restored configuration so the red highlight tracks the cursor."
           (spatial-window--assignment-to-keys
            (spatial-window--compute-assignment (spatial-window--window-bounds))
            (spatial-window--get-layout)))
-    (when (spatial-window--state-overlays-visible st)
-      (spatial-window--show-overlays (spatial-window--state-highlighted-windows st)))
+    (spatial-window--refresh-overlays)
     (message "%s" (spatial-window--unified-mode-message))))
 
 (defun spatial-window--history-back ()
