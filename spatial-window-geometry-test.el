@@ -47,9 +47,9 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
   "Single window gets all cells."
   (spatial-window-test--assert-assignment
    '((W 0.0 1.0 0.0 1.0))
-   '("W W W W W W W W W W"
-     "W W W W W W W W W W"
-     "W W W W W W W W W W")))
+   '("Row 0: W W W W W W W W W W"
+     "Row 1: W W W W W W W W W W"
+     "Row 2: W W W W W W W W W W")))
 
 ;;; ┌─────────┬─────────┐
 ;;; │ L       │ R       │
@@ -65,9 +65,9 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
   (spatial-window-test--assert-assignment
    '((L 0.0 0.5 0.0 1.0)
      (R 0.5 1.0 0.0 1.0))
-   '("L L L L L R R R R R"
-     "L L L L L R R R R R"
-     "L L L L L R R R R R")))
+   '("Row 0: L L L L L R R R R R"
+     "Row 1: L L L L L R R R R R"
+     "Row 2: L L L L L R R R R R")))
 
 ;;; ┌────────┬────────┐
 ;;; │ T      │ R      │
@@ -87,9 +87,9 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
    '((T 0.0 0.5 0.0 0.5)
      (B 0.0 0.5 0.5 1.0)
      (R 0.5 1.0 0.0 1.0))
-   '("T T T T T R R R R R"
-     "· · · · · R R R R R"
-     "B B B B B R R R R R")))
+   '("Row 0: T T T T T R R R R R"
+     "Row 1: · · · · · R R R R R"
+     "Row 2: B B B B B R R R R R")))
 
 ;;; ┌────────┬──────┐
 ;;; │ R      │ C    │
@@ -109,9 +109,9 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
    `((C 0.5894736842105263 0.9988304093567252 0.0019230769230769232 0.9846153846153847)
      (R 0.0011695906432748538 0.5894736842105263 0.0019230769230769232 0.4855769230769231)
      (M 0.0011695906432748538 0.5894736842105263 0.4855769230769231 0.9846153846153847))
-   '("R R R R R R C C C C"
-     "· · · · · C C C C C"
-     "M M M M M M C C C C")))
+   '("Row 0: R R R R R R C C C C"
+     "Row 1: · · · · · C C C C C"
+     "Row 2: M M M M M M C C C C")))
 
 ;;; ┌────────┬──────┐
 ;;; │        │      │
@@ -141,9 +141,9 @@ On mismatch, show layout diagram and side-by-side diff via `ert-info'."
         0.0019230769230769232 0.49903846153846154)
      (J 0.0011695906432748538 0.5894736842105263
         0.49903846153846154 0.7423076923076923))
-   '("S S S S S S C C C C"
-     "J J J J J C C C C C"
-     "T T T T T T C C C C")))
+   '("Row 0: S S S S S S C C C C"
+     "Row 1: J J J J J C C C C C"
+     "Row 2: T T T T T T C C C C")))
 
 ;;; Middle row assignment threshold characterization
 ;;;
@@ -199,9 +199,9 @@ split away from exactly 50%."
      (T 0.2 0.7 0.0 0.5)
      (B 0.2 0.7 0.5 1.0)
      (R 0.7 1.0 0.0 1.0))
-   '("L L T T T T T R R R"
-     "L L · · · · · R R R"
-     "L L B B B B B R R R")))
+   '("Row 0: L L T T T T T R R R"
+     "Row 1: L L · · · · · R R R"
+     "Row 2: L L B B B B B R R R")))
 
 ;;; ┌──────────────────────────────────────────────────────────────────────────┬───────┐
 ;;; │                                                                          │       │
@@ -231,9 +231,9 @@ split away from exactly 50%."
    '((M 0.0 0.955 0.0 1.0)
      (T 0.955 1.0 0.0 0.92)
      (B 0.955 1.0 0.92 1.0))
-   '("M M M M M M M M M T"
-     "M M M M M M M M M T"
-     "M M M M M M M M M B")))
+   '("Row 0: M M M M M M M M M T"
+     "Row 1: M M M M M M M M M T"
+     "Row 2: M M M M M M M M M B")))
 
 ;;; ┌─────────┐
 ;;; │ A       │
@@ -256,9 +256,9 @@ split away from exactly 50%."
    '((A 0.0 1.0 0.0 0.33)
      (B 0.0 1.0 0.33 0.67)
      (C 0.0 1.0 0.67 1.0))
-   '("A A A A A A A A A A"
-     "B B B B B B B B B B"
-     "C C C C C C C C C C")))
+   '("Row 0: A A A A A A A A A A"
+     "Row 1: B B B B B B B B B B"
+     "Row 2: C C C C C C C C C C")))
 
 ;;; ┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
 ;;; │ A       │ B       │ C       │ D       │ E       │ F       │ G       │ H       │ I       │ J       │
@@ -276,9 +276,9 @@ split away from exactly 50%."
      (D 0.3 0.4 0.0 1.0) (E 0.4 0.5 0.0 1.0) (F 0.5 0.6 0.0 1.0)
      (G 0.6 0.7 0.0 1.0) (H 0.7 0.8 0.0 1.0) (I 0.8 0.9 0.0 1.0)
      (J 0.9 1.0 0.0 1.0))
-   '("A B C D E F G H I J"
-     "A B C D E F G H I J"
-     "A B C D E F G H I J")))
+   '("Row 0: A B C D E F G H I J"
+     "Row 1: A B C D E F G H I J"
+     "Row 2: A B C D E F G H I J")))
 
 ;;; ┌───────────────────────────────────────────┬────────────────────────────────────┐
 ;;; │                                           │                                    │
@@ -307,9 +307,9 @@ split away from exactly 50%."
      (D 0.129 0.255 0.483 1.0)
      (E 0.255 0.511 0.483 1.0)
      (Z 0.0 0.066 0.725 1.0))
-   '("G G G G G C C C C C"
-     "A G G · · C C C C C"
-     "Z B D E E C C C C C")))
+   '("Row 0: G G G G G C C C C C"
+     "Row 1: A G G · · C C C C C"
+     "Row 2: Z B D E E C C C C C")))
 
 ;;; ┌────────┬─────┐
 ;;; │        │     │
@@ -339,9 +339,9 @@ split away from exactly 50%."
    '((M 0.0 0.63 0.0 0.93)
      (D 0.0 0.63 0.93 0.985)
      (C 0.63 1.0 0.0 0.985))
-   '("M M M M M M C C C C"
-     "M M M M M M C C C C"
-     "D D D D D C C C C C")))
+   '("Row 0: M M M M M M C C C C"
+     "Row 1: M M M M M M C C C C"
+     "Row 2: D D D D D C C C C C")))
 
 ;;; ┌───────┬──────────────────────────────────────────────────────────────────────────┐
 ;;; │       │                                                                          │
@@ -366,9 +366,9 @@ split away from exactly 50%."
    '((T 0.001 0.042 0.002 0.769)
      (B 0.001 0.042 0.769 0.985)
      (R 0.042 0.999 0.002 0.985))
-   '("T R R R R R R R R R"
-     "T R R R R R R R R R"
-     "B R R R R R R R R R")))
+   '("Row 0: T R R R R R R R R R"
+     "Row 1: T R R R R R R R R R"
+     "Row 2: B R R R R R R R R R")))
 
 ;;; ┌────────────────┬──────────┐
 ;;; │ A              │ B        │
@@ -389,9 +389,9 @@ split away from exactly 50%."
      (B 0.598 0.999 0.002 0.5)
      (C 0.001 0.327 0.5 0.985)
      (D 0.327 0.999 0.5 0.985))
-   '("A A A A A A B B B B"
-     "· · A A A D D D · ·"
-     "C C C D D D D D D D")))
+   '("Row 0: A A A A A A B B B B"
+     "Row 1: · · A A A D D D · ·"
+     "Row 2: C C C D D D D D D D")))
 
 ;;; ┌────────┬──────────────────────────────────────────────────────────────────┐
 ;;; │        │                                                                  │
@@ -418,9 +418,9 @@ split away from exactly 50%."
      (N 0.0011695906432748538 0.11052631578947368 0.0019230769230769232 0.48653846153846153)
      (W 0.11052631578947368 0.9988304093567252 0.0019230769230769232 0.48653846153846153)
      (G 0.0011695906432748538 0.3192982456140351 0.48653846153846153 0.9846153846153847))
-   '("N W W W W W W W W W"
-     "G G · P P P P P P P"
-     "G G G Q Q Q Q Q Q Q")))
+   '("Row 0: N W W W W W W W W W"
+     "Row 1: G G · P P P P P P P"
+     "Row 2: G G G Q Q Q Q Q Q Q")))
 
 ;;; ┌────────┬────────┐
 ;;; │        │        │
@@ -454,9 +454,9 @@ split away from exactly 50%."
         0.5259615384615385 0.823076923076923)
      (C 0.5087719298245614 0.9988304093567252
         0.015384615384615385 0.823076923076923))
-   '("A A A A A C C C C C"
-     "M M M M M C C C C C"
-     "L L L L L L L L L L")))
+   '("Row 0: A A A A A C C C C C"
+     "Row 1: M M M M M C C C C C"
+     "Row 2: L L L L L L L L L L")))
 
 (provide 'spatial-window-geometry-test)
 

@@ -285,7 +285,7 @@ Returns nil with message if more than 30 windows."
         final))))
 
 (defun spatial-window--grid-to-strings (grid)
-  "Convert assignment GRID to list of space-separated label strings.
+  "Convert assignment GRID to list of \"Row N: label ...\" strings.
 Each cell renders as the window's symbol-name, or · for nil."
   (let ((result nil))
     (dotimes (row (length grid))
@@ -293,7 +293,9 @@ Each cell renders as the window's symbol-name, or · for nil."
         (dotimes (col (length (aref grid row)))
           (let ((win (aref (aref grid row) col)))
             (push (if win (symbol-name win) "·") cells)))
-        (push (mapconcat #'identity (nreverse cells) " ") result)))
+        (push (format "Row %d: %s" row
+                      (mapconcat #'identity (nreverse cells) " "))
+              result)))
     (nreverse result)))
 
 (provide 'spatial-window-geometry)
