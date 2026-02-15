@@ -692,7 +692,7 @@ Other keys:
   Left/Right - Browse window configuration history
   RET - Confirm current selection (kill/focus) or exit
   SPC - Select minibuffer window (if active), otherwise exit
-  C-g - Abort (restores layout if browsing history)
+  \\[keyboard-quit] - Abort (restores layout if browsing history)
 
 When `spatial-window-overlay-delay' is set, overlays appear after
 the configured delay instead of immediately."

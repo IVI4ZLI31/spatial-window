@@ -1,5 +1,25 @@
 ;;; spatial-window-test-helper.el --- Test helpers for spatial-window -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2025 Le Wang
+
+;; Author: Le Wang <lewang.dev.26@gmail.com>
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;; This file is not part of GNU Emacs.
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 ;;; Commentary:
 ;; ASCII box-drawing renderer for window-bounds data, used in test output
 ;; and debugging.
@@ -150,9 +170,9 @@ WINDOW-BOUNDS is the original bounds list."
                   (aset col-widths c need)))))))
       col-widths)))
 
-(defun spatial-window--bts-row-heights (grid x-coords y-coords col-widths window-bounds)
-  "Compute row heights for the grid using proportional scaling.
-GRID, X-COORDS, Y-COORDS, COL-WIDTHS, WINDOW-BOUNDS as in other helpers."
+(defun spatial-window--bts-row-heights (_grid x-coords y-coords col-widths window-bounds)
+  "Compute row heights using proportional scaling.
+X-COORDS, Y-COORDS, COL-WIDTHS, WINDOW-BOUNDS as in other helpers."
   (let* ((ncols (1- (length x-coords)))
          (nrows (1- (length y-coords)))
          (min-v-scale 0.0))
@@ -163,7 +183,6 @@ GRID, X-COORDS, Y-COORDS, COL-WIDTHS, WINDOW-BOUNDS as in other helpers."
              (top (nth 3 entry)) (bottom (nth 4 entry))
              (frac-h (- bottom top))
              (dims (spatial-window--bts-dims-string left right top bottom))
-             (rows (spatial-window--bts-window-rows y-coords top bottom nrows))
              (cols (spatial-window--bts-window-cols x-coords left right ncols)))
         (let* ((span-w (cl-loop for c in cols sum (aref col-widths c)))
                (total-w (+ span-w (1- (length cols))))
@@ -215,9 +234,9 @@ GRID is the label grid, NROWS and NCOLS are dimensions."
     nil))
 
 (defun spatial-window--bts-render-hline (grid y-pos ncols col-widths nrows)
-  "Render a horizontal line at Y-POS in the grid.
-GRID is the label grid, NCOLS is column count, COL-WIDTHS is column width vector.
-NROWS is total rows.  Y-POS is a row boundary: 0 = top, NROWS = bottom."
+  "Render a horizontal line at Y-POS in the GRID.
+NCOLS is column count, COL-WIDTHS is width vector.
+NROWS is total rows.  Y-POS: 0 = top, NROWS = bottom."
   (let ((result ""))
     (dotimes (x-idx (1+ ncols))
       (let* ((has-up (and (> y-pos 0)
@@ -301,9 +320,10 @@ Returns a list of strings, one per line, left-padded with 1 space."
     (nreverse result)))
 
 (defun spatial-window--bts-render-content-line (grid row line-idx col-widths row-heights
-                                                     x-coords y-coords bounds-ht nrows ncols)
+                                                     _x-coords y-coords bounds-ht nrows ncols)
   "Render one content line for ROW at LINE-IDX.
-GRID, COL-WIDTHS, ROW-HEIGHTS, X-COORDS, Y-COORDS, BOUNDS-HT, NROWS, NCOLS as context."
+GRID, COL-WIDTHS, ROW-HEIGHTS, Y-COORDS, BOUNDS-HT,
+NROWS, NCOLS as context."
   (let ((result "")
         (c 0))
     (while (< c ncols)
@@ -351,10 +371,11 @@ GRID, COL-WIDTHS, ROW-HEIGHTS, X-COORDS, Y-COORDS, BOUNDS-HT, NROWS, NCOLS as co
     result))
 
 (defun spatial-window--bts-render-separator (grid y-pos ncols col-widths row-heights
-                                                  x-coords y-coords bounds-ht nrows)
-  "Render separator line between row Y-POS-1 and Y-POS.
-For spanning windows, shows content; for boundaries, shows horizontal lines.
-GRID, NCOLS, COL-WIDTHS, ROW-HEIGHTS, X-COORDS, Y-COORDS, BOUNDS-HT, NROWS as context."
+                                                  _x-coords y-coords bounds-ht nrows)
+  "Render separator between row Y-POS-1 and Y-POS.
+Spanning windows show content; boundaries show lines.
+GRID, NCOLS, COL-WIDTHS, ROW-HEIGHTS, Y-COORDS,
+BOUNDS-HT, NROWS as context."
   (let ((result "")
         (c 0))
     (while (< c ncols)

@@ -79,7 +79,7 @@ A window touches an edge when its boundary is within
     edges))
 
 (defun spatial-window--cell-edges (row col kbd-rows kbd-cols)
-  "Return list of edge keywords for which screen edges cell (ROW, COL) sits on."
+  "Return edge keywords for cell (ROW, COL) in KBD-ROWS x KBD-COLS grid."
   (let (edges)
     (when (= row 0) (push :top edges))
     (when (= row (1- kbd-rows)) (push :bottom edges))
@@ -88,7 +88,8 @@ A window touches an edge when its boundary is within
     edges))
 
 (defun spatial-window--cell-y-overlap (cell-row kbd-rows win-y-start win-y-end)
-  "Return vertical overlap fraction for CELL-ROW and window y-bounds."
+  "Return vertical overlap of CELL-ROW (in KBD-ROWS grid) with window.
+WIN-Y-START and WIN-Y-END define the window y-bounds."
   (let* ((cell-y-start (/ (float cell-row) kbd-rows))
          (cell-y-end (/ (float (1+ cell-row)) kbd-rows))
          (cell-h (- cell-y-end cell-y-start))
@@ -98,10 +99,11 @@ A window touches an edge when its boundary is within
     (/ y-overlap-size cell-h)))
 
 (defun spatial-window--assign-cells (kbd-rows kbd-cols window-bounds)
-  "Assign each cell to nearest weighted centroid (row-gated Voronoi).
-A cell is left unassigned when the best and second-best windows are
-vertically stacked (significant x-overlap) and their scores are too
-close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
+  "Assign each cell in KBD-ROWS x KBD-COLS grid using WINDOW-BOUNDS.
+Uses row-gated weighted Voronoi.  A cell is left unassigned when the
+best and second-best windows are vertically stacked (significant
+x-overlap) and their scores are too close
+\(ratio >= `spatial-window--voronoi-ambiguity-ratio')."
   (let* ((centroids (mapcar #'spatial-window--window-centroid window-bounds))
          (weights (mapcar #'spatial-window--window-area window-bounds))
          (grid (make-vector kbd-rows nil)))
@@ -182,7 +184,8 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
 
 (defun spatial-window--cell-overlap (cell-row cell-col kbd-rows kbd-cols
                                               win-x-start win-x-end win-y-start win-y-end)
-  "Return overlap fraction between a cell and a window."
+  "Return overlap of cell (CELL-ROW, CELL-COL) in KBD-ROWS x KBD-COLS grid.
+Window defined by WIN-X-START, WIN-X-END, WIN-Y-START, WIN-Y-END."
   (let* ((cell-x-start (/ (float cell-col) kbd-cols))
          (cell-x-end (/ (float (1+ cell-col)) kbd-cols))
          (cell-y-start (/ (float cell-row) kbd-rows))
@@ -200,11 +203,12 @@ close (ratio >= `spatial-window--voronoi-ambiguity-ratio')."
     (/ overlap-area cell-area)))
 
 (defun spatial-window--assign-edges (grid kbd-rows kbd-cols window-bounds)
-  "Force top/bottom row cells to nearest edge-touching window.
-For each cell on the top or bottom grid row, find windows sharing at
-least one screen edge with that cell, then pick the nearest by clamped
-nearest-point distance.  Nil cells (from ambiguity) are also reassigned
-on these rows since edge affinity provides a strong signal."
+  "Force top/bottom row cells in GRID to nearest edge-touching window.
+KBD-ROWS and KBD-COLS define grid dimensions, WINDOW-BOUNDS is the
+bounds list.  For each cell on the top or bottom grid row, find
+windows sharing at least one screen edge with that cell, then pick
+the nearest by clamped nearest-point distance.  Nil cells (from
+ambiguity) are also reassigned since edge affinity is a strong signal."
   (let ((win-edges-cache
          (mapcar (lambda (wb) (cons (car wb) (spatial-window--window-edges wb)))
                  window-bounds)))
@@ -239,7 +243,9 @@ on these rows since edge affinity provides a strong signal."
             (aset (aref grid row) col best-win)))))))
 
 (defun spatial-window--ensure-all-windows-have-keys (final kbd-rows kbd-cols window-bounds)
-  "Ensure every window gets at least one key by stealing best-overlap cells."
+  "Ensure every window in FINAL grid gets at least one key.
+KBD-ROWS and KBD-COLS define grid dimensions.
+Steals best-overlap cells from WINDOW-BOUNDS."
   (let ((counts (spatial-window--count-all-keys final kbd-rows kbd-cols))
         (changed t))
     (while changed
